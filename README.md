@@ -134,3 +134,11 @@ and the page numbers; `--strict` makes it fail the build.
 | `lib/svg2pptx.py` | SVG to native PowerPoint shapes |
 | `lib/folio_check.py` | find text that has overrun into the bottom margin |
 | `assets/` | LaTeX preamble, HTML style, table-width filter, wrapper template |
+
+## Licence
+
+Copyright 2026 Benoît Dupont de Dinechin
+
+Licensed under the Apache License, Version 2.0 (`Apache-2.0`) — see [LICENSE](LICENSE).
+You may not use these files except in compliance with the License. A copy is at
+<https://www.apache.org/licenses/LICENSE-2.0>.
