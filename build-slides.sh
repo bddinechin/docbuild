@@ -149,11 +149,16 @@ ENDPY
 
 build () {  # $1 = suffix, $2... = extra pandoc args
   local suffix="$1"; shift
+  # -V title fills the title frame but is only a template variable; the PDF's own Title
+  # property comes from the title-meta metadata, so set both. The notes variant says so,
+  # since otherwise the two decks are indistinguishable in a reader's window list.
+  local meta_title="${SLIDES_TITLE:-$NAME}"
+  [[ "$suffix" == "_notes" ]] && meta_title="$meta_title (with notes)"
   pandoc "$TMP/deck.md" -t beamer -o "$OUTDIR/${NAME}${suffix}_$STAMP.pdf" \
     --pdf-engine=xelatex --slide-level=2 --include-in-header="$PKG/assets/beamer-header.tex" \
     -V aspectratio=169 -V theme=default -V fontsize=10pt -V classoption=t \
     -V mainfont="DejaVu Sans" -V sansfont="DejaVu Sans" -V monofont="DejaVu Sans Mono" \
-    -V title="${SLIDES_TITLE:-$NAME}" \
+    -V title="${SLIDES_TITLE:-$NAME}" -M title-meta="$meta_title" \
     -V subtitle="${SLIDES_SUBTITLE:-}" \
     -V date="${SLIDES_DATE:-$(date +'%B %Y')}" "$@"
   cache_record "$NAME$suffix.pdf" "$HASH" "${NAME}${suffix}_$STAMP.pdf"

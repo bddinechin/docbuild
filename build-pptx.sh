@@ -149,6 +149,7 @@ ENDPY
 pandoc "$TMP/deck.md" -t pptx --slide-level=2 -o "$TMP/deck.pptx"
 
 # --- post-process: redraw each diagram slide as native shapes ---
+DECK_TITLE="${SLIDES_TITLE:-$NAME}" DECK_SUBTITLE="${SLIDES_SUBTITLE:-}" \
 PYTHONPATH="$PKG/lib" python3 - "$TMP/deck.pptx" "$OUT" "$DIAGRAMS" <<'ENDPY'
 import glob, os, re, sys
 from pptx import Presentation
@@ -190,6 +191,12 @@ for slide in prs.slides:
     n = svg2pptx.draw(matches[0], slide, box)
     print(f'  {os.path.basename(matches[0])}  ->  {n} shapes')
     drawn += 1
+
+# PowerPoint's own document properties: pandoc leaves these empty.
+cp = prs.core_properties
+cp.title = os.environ.get('DECK_TITLE') or 'Slides'
+if os.environ.get('DECK_SUBTITLE'):
+    cp.subject = os.environ['DECK_SUBTITLE']
 
 prs.save(out)
 print(f'\n  {len(prs.slides._sldIdLst)} slides, {drawn} diagrams as native shapes')
