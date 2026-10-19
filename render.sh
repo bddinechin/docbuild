@@ -82,6 +82,15 @@ for f in "${FILES[@]}"; do
   rel="${f#"$PROJECT"/}"
   stem="$(echo "${rel%.md}" | tr '/' '_')"
 
+  # Title for the PDF properties and the HTML <title>: DOC_TITLE if the project sets one, else
+  # the document's own first H1, else the path. Passed as title-meta/pagetitle rather than
+  # title, so it reaches the document properties without pandoc also rendering a title block
+  # above the document's own heading. Not covered by the content hash — use --force after
+  # changing DOC_TITLE.
+  title="${DOC_TITLE:-}"
+  [[ -n "$title" ]] || title="$(sed -n 's/^# \+//p' "$f" | head -1)"
+  [[ -n "$title" ]] || title="$rel"
+
   if (( PDF )); then
     hash="$(cache_hash "$f")"
     if (( ! FORCE )); then
@@ -106,12 +115,12 @@ for f in "${FILES[@]}"; do
       -V mainfont="DejaVu Sans" -V monofont="DejaVu Sans Mono" \
       -V geometry:a4paper -V geometry:margin=1.8cm -V fontsize=10pt \
       -V colorlinks=true -V linkcolor=blue -V urlcolor=blue \
-      --metadata title="$rel" "${PDF_OPTS[@]+"${PDF_OPTS[@]}"}"
+      --metadata title-meta="$title" "${PDF_OPTS[@]+"${PDF_OPTS[@]}"}"
     cache_record "$stem.pdf" "$hash" "$(basename "$out")"
   else
     out="$OUTDIR/$stem.html"
     pandoc -f gfm "$f" -o "$out" -t html5 --standalone --toc --toc-depth=3 \
-      --metadata title="$rel" --include-in-header="$STYLE"
+      --metadata pagetitle="$title" --include-in-header="$STYLE"
   fi
   printf '  %-42s -> file://%s\n' "$rel" "$out"
   rendered+=("$out")

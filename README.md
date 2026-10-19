@@ -51,6 +51,19 @@ fileset_all()     { find "$PROJECT/Output" -maxdepth 1 -name '*.md' | sort; }
 Every `fileset_<name>` function becomes a `--<name>` flag, so the second one above is
 `./render.sh --all`. A project that keeps its PDFs out of the tree sets `PDF_OUTDIR=""`.
 
+## Titles
+
+A document's title reaches the PDF properties and the HTML `<title>`. By default each document
+takes its **own first `# heading`**, falling back to its path only if it has none — so a document
+that names itself needs no configuration. `DOC_TITLE` overrides it where a project wants something
+else, and applies to every document a single invocation renders, which suits a single-document
+project.
+
+The title is passed to pandoc as `title-meta` and `pagetitle` rather than as `title`. Those reach
+the document properties without pandoc also rendering a title block above the document's own
+heading, which is what produced a stray path on the first page of every PDF before. Note the title
+is not part of the content hash, so use `--force` after changing `DOC_TITLE`.
+
 ## Dated filenames, and why they do not multiply
 
 Output carries the build date — `Output_Design_Note_20260903.pdf` — so successive

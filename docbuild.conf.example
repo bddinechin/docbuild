@@ -5,6 +5,12 @@
 
 DOC_ABOUT="one line describing the project, shown in --help"
 
+# Title for the PDF properties and the HTML <title>. Optional: with no DOC_TITLE each document
+# takes its own first `# heading`, and only falls back to its path if it has none. Set this for a
+# single-document project that wants a title other than its heading; it applies to every document
+# a single invocation renders, so a multi-document project usually wants the heading default.
+# DOC_TITLE="Project — subject"
+
 # Where dated PDFs go. Leave empty to keep them out of the project tree, alongside the HTML
 # previews — the right choice when the PDF is a preview rather than a deliverable.
 PDF_OUTDIR="docs/pdf"
