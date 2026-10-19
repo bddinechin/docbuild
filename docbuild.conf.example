@@ -1,0 +1,50 @@
+# docbuild.conf — how this project builds its documents. Sourced by the docbuild tools.
+#
+# Keep it declarative: a few variables and a few fileset functions. Paths are relative to this
+# file's directory unless they start with /.
+
+DOC_ABOUT="one line describing the project, shown in --help"
+
+# Where dated PDFs go. Leave empty to keep them out of the project tree, alongside the HTML
+# previews — the right choice when the PDF is a preview rather than a deliverable.
+PDF_OUTDIR="docs/pdf"
+
+# Where HTML previews go. Empty means $TMPDIR/<project>-preview.
+HTML_OUTDIR=""
+
+# The documents rendered when none are named on the command line.
+fileset_default() {
+  echo "docs/README.md"
+}
+
+# Every `fileset_<name>` becomes a `--<name>` flag, so this one is `render.sh --all`.
+fileset_all() {
+  find "$PROJECT/docs" -maxdepth 1 -name '*.md' | sort
+}
+
+# --- slides, if the project has any (build-slides.sh, build-pptx.sh) ---
+# SLIDES_SRC="docs/presentation-content.md"
+# DIAGRAMS_DIR="docs/diagrams"
+# SLIDES_NAME="Project_slides"
+# SLIDES_TITLE="Project — subject"
+# SLIDES_SUBTITLE="Internal review"
+# SLIDES_DATE="September 2026"
+# PPTX_OUTDIR="docs/pptx"
+
+# --- LaTeX documents, if the project has any (build-latex.sh) ---
+# For projects where LaTeX rather than Markdown is the master: a directory of documents sharing
+# one style file. Every .tex declaring a \documentclass is a document; the rest are includes,
+# and a change to any of them rebuilds every document.
+# LATEX_DIR="Output/Reports"
+# LATEX_ENGINE="pdflatex"          # default pdflatex
+# LATEX_PASSES=3                   # default 3 — longtable column widths settle on the third
+# LATEX_OUTDIR=""                  # default: beside the sources
+# LATEX_STAMP=""                   # "date" for dated names; default follows the source name,
+#                                  # because a LaTeX deliverable is usually cited by a fixed name
+# LATEX_FOLIO_CHECK=1              # warn when text runs into the bottom margin
+# LATEX_FOLIO_BAND="727 748"       # that band, in points, for this page geometry
+
+# --- rarely needed ---
+# PDF_HEADER="docbuild/header.tex"     # replace the packaged LaTeX preamble
+# HTML_STYLE="docbuild/style.html"     # replace the packaged <style> block
+# PDF_OPTS=(-V geometry:margin=2.5cm)  # extra pandoc arguments

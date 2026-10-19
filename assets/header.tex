@@ -1,0 +1,10 @@
+\usepackage{etoolbox}
+\usepackage{fvextra}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere,commandchars=\\\{\}}
+% plain ``` blocks become `verbatim`, which the line above does not cover
+\RecustomVerbatimEnvironment{verbatim}{Verbatim}{breaklines,breakanywhere}
+\usepackage[htt]{hyphenat}      % let long \texttt paths and hashes break
+\usepackage{ragged2e}
+\AtBeginEnvironment{longtable}{\RaggedRight\small}
+\setlength{\emergencystretch}{3em}
+\hyphenpenalty=200 \tolerance=2000
