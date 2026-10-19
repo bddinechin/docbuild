@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Benoît Dupont de Dinechin
+# SPDX-License-Identifier: Apache-2.0
 # project.sh — locate and load a project's docbuild.conf. Source this, do not run it.
 #
 # A project describes itself in a single file, docbuild.conf at its root. Everything the tools

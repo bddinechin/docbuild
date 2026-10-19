@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Benoît Dupont de Dinechin
+# SPDX-License-Identifier: Apache-2.0
 """Report text that has strayed into a page's bottom-margin band.
 
 `longtable` cannot break a row across a page. A row taller than the remaining space is not split;

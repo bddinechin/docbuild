@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Benoît Dupont de Dinechin
+# SPDX-License-Identifier: Apache-2.0
 # install.sh — put docbuild wrappers into a project.
 #
 #   ./install.sh /path/to/project [tool ...]

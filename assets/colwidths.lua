@@ -1,3 +1,5 @@
+-- SPDX-FileCopyrightText: 2026 Benoît Dupont de Dinechin
+-- SPDX-License-Identifier: Apache-2.0
 -- GFM pipe tables carry no column widths, so pandoc emits natural-width `l` columns that never
 -- wrap and run hundreds of points off the page. Derive relative widths from the longest cell in
 -- each column instead, square-rooted so one very long column does not crush the others.

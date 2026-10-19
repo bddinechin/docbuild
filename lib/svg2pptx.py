@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Benoît Dupont de Dinechin
+# SPDX-License-Identifier: Apache-2.0
 """svg2pptx — draw a project diagram SVG onto a python-pptx slide as native shapes.
 
 Not a general SVG renderer. It covers exactly the subset the docs/diagrams/D*.svg files use,

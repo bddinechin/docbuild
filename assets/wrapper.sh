@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Benoît Dupont de Dinechin
+# SPDX-License-Identifier: Apache-2.0
 # Thin wrapper — the build itself lives in the docbuild package, which is shared between
 # projects. This file only finds the package and hands it this project. What is specific to
 # this project is in docbuild.conf beside it.

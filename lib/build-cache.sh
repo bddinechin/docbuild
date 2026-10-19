@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Benoît Dupont de Dinechin
+# SPDX-License-Identifier: Apache-2.0
 # build-cache.sh — skip a rebuild whose sources have not changed. Source this, do not run it.
 #
 # Output filenames carry the build date, so an unconditional rebuild drops a second copy of an

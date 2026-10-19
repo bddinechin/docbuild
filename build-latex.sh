@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Benoît Dupont de Dinechin
+# SPDX-License-Identifier: Apache-2.0
 # build-latex.sh — build a project's LaTeX documents, rebuilding only what has changed.
 #
 # For projects where LaTeX rather than Markdown is the master: a directory of documents that

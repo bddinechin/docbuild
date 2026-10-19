@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Benoît Dupont de Dinechin
+# SPDX-License-Identifier: Apache-2.0
 # build-pptx.sh — build an editable .pptx from a project's slide-content Markdown.
 #
 # Companion to build-slides.sh, which produces the beamer PDF from the same source and with the

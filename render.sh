@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Benoît Dupont de Dinechin
+# SPDX-License-Identifier: Apache-2.0
 # render.sh — render a project's Markdown as HTML preview or dated PDF.
 #
 # Uses pandoc, and xelatex for PDF. It makes no network calls: several of the projects that use

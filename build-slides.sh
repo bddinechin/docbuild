@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Benoît Dupont de Dinechin
+# SPDX-License-Identifier: Apache-2.0
 # build-slides.sh — build a beamer deck from a project's slide-content Markdown.
 #
 # Companion to render.sh, which renders documents. This one renders slides: one frame per
