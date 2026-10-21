@@ -151,8 +151,11 @@ for f in "${FILES[@]}"; do
     cache_record "$stem.pdf" "$hash" "$(basename "$out")"
   else
     out="$OUTDIR/$stem.html"
+    # --embed-resources, because the preview lands in a temporary directory and an image link
+    # in the document is relative to the document. Without it every figure is a broken image
+    # in exactly the output someone opens to look at the figures.
     pandoc -f gfm "$f" -o "$out" -t html5 --standalone --toc --toc-depth=3 \
-      --resource-path="$(cd "$(dirname "$f")" && pwd):$PROJECT" \
+      --resource-path="$(cd "$(dirname "$f")" && pwd):$PROJECT" --embed-resources \
       --metadata pagetitle="$title" --include-in-header="$STYLE"
   fi
   printf '  %-42s -> file://%s\n' "$rel" "$out"
