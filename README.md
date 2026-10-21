@@ -83,6 +83,19 @@ than rebuild everything once to learn what is current, it accepts an existing da
 mtime is newer than every source — the claim "this was built from these sources". That heuristic
 applies only where there is no manifest entry; after that the comparison is by content.
 
+A build also **removes the dated files it supersedes**. The date is there so a reader can tell
+which version they were sent, which argues for naming the file, not for keeping every one: an
+older PDF beside the current one sorts right next to it and is exactly as easy to attach to an
+email. `--keep-old` retains them.
+
+Pruning is driven by the manifest and is deliberately narrow. A stem with no manifest entry is
+left alone — without an entry there is nothing to call those files superseded *against*, and
+guessing from mtime is how you delete the wrong one — and an entry whose recorded file has gone
+missing prunes nothing. Keys carry the extension, so a `.pptx` entry never prunes a `.pdf` of
+the same name. It runs after the whole fileset rather than per document, so a run that rebuilt
+nothing still clears what earlier runs left, including for documents not named on the command
+line.
+
 ## Slides
 
 `build-slides.sh` and `build-pptx.sh` read one Markdown file that carries both the deck and what
