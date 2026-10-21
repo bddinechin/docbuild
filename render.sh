@@ -15,6 +15,7 @@
 #   render.sh -o DIR ...        output directory
 #   render.sh --force ...       rebuild even where the source is unchanged
 #   render.sh --keep-old ...    keep dated outputs that this build supersedes
+#   render.sh --prune-only      remove superseded outputs and build nothing
 #   render.sh --project DIR     the project to read docbuild.conf from (default: $PWD)
 #
 # PDF filenames carry the build date — Output_Design_Note_20260903.pdf — so successive
@@ -48,13 +49,14 @@ usage() {
   printf 'Filesets: %s\n' "$(project_filesets | sed 's/^/--/' | tr '\n' ' ')"
 }
 
-OUTDIR=""; OPEN=0; PDF=0; FORCE=0; KEEP_OLD=0; FILES=()
+OUTDIR=""; OPEN=0; PDF=0; FORCE=0; KEEP_OLD=0; PRUNE_ONLY=0; FILES=()
 while (( $# )); do
   case "$1" in
     --pdf)     PDF=1 ;;
     --open)    OPEN=1 ;;
     --force)   FORCE=1 ;;
     --keep-old) KEEP_OLD=1 ;;
+    --prune-only) PRUNE_ONLY=1; PDF=1 ;;
     --project) shift ;;
     -o)        shift; OUTDIR="$1" ;;
     -h|--help) usage; exit 0 ;;
@@ -71,6 +73,17 @@ if (( ! ${#FILES[@]} )); then
   while IFS= read -r f; do FILES+=("$f"); done < <(project_fileset default)
 fi
 [[ -n "$OUTDIR" ]] || { (( PDF )) && OUTDIR="$(project_pdf_outdir)" || OUTDIR="$(project_html_outdir)"; }
+
+# Sweeping an output directory that accumulated superseded files before pruning existed should
+# not require rebuilding anything -- a rebuild would change dates and content, which is a larger
+# action than the one being asked for.
+if (( PRUNE_ONLY )); then
+  [[ -d "$OUTDIR" ]] || { echo "render.sh: no such directory: $OUTDIR" >&2; exit 1; }
+  cache_init "$OUTDIR"
+  echo "== pruning $OUTDIR =="
+  cache_prune "$OUTDIR"
+  exit 0
+fi
 
 command -v pandoc >/dev/null || { echo "render.sh: pandoc is not installed" >&2; exit 1; }
 (( PDF )) && { command -v xelatex >/dev/null || { echo "render.sh: --pdf needs xelatex" >&2; exit 1; }; }
