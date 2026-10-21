@@ -14,6 +14,7 @@
 #   render.sh --open ...        also open the first result
 #   render.sh -o DIR ...        output directory
 #   render.sh --force ...       rebuild even where the source is unchanged
+#   render.sh --keep-old ...    keep dated outputs that this build supersedes
 #   render.sh --project DIR     the project to read docbuild.conf from (default: $PWD)
 #
 # PDF filenames carry the build date — Output_Design_Note_20260903.pdf — so successive
@@ -24,6 +25,10 @@
 # hash in .build-manifest beside the output. A date stamp therefore marks the day the document
 # changed rather than the day someone ran the script. The hash covers the Markdown alone, so
 # use --force after editing the LaTeX preamble or upgrading pandoc.
+#
+# A PDF build also removes the dated files it supersedes, so the output directory holds the
+# current build of each document rather than every build of it. An older PDF sitting beside the
+# current one is a version someone can send by mistake. Pass --keep-old to retain them.
 
 set -euo pipefail
 PKG="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -43,12 +48,13 @@ usage() {
   printf 'Filesets: %s\n' "$(project_filesets | sed 's/^/--/' | tr '\n' ' ')"
 }
 
-OUTDIR=""; OPEN=0; PDF=0; FORCE=0; FILES=()
+OUTDIR=""; OPEN=0; PDF=0; FORCE=0; KEEP_OLD=0; FILES=()
 while (( $# )); do
   case "$1" in
     --pdf)     PDF=1 ;;
     --open)    OPEN=1 ;;
     --force)   FORCE=1 ;;
+    --keep-old) KEEP_OLD=1 ;;
     --project) shift ;;
     -o)        shift; OUTDIR="$1" ;;
     -h|--help) usage; exit 0 ;;
@@ -125,6 +131,11 @@ for f in "${FILES[@]}"; do
   printf '  %-42s -> file://%s\n' "$rel" "$out"
   rendered+=("$out")
 done
+
+# Prune after the whole fileset, not per document: this way a run that rebuilt nothing still
+# clears what earlier runs superseded, and every stem in the manifest is considered, not only
+# the ones named on this command line.
+(( PDF && ! KEEP_OLD )) && cache_prune "$OUTDIR"
 
 (( ${#rendered[@]} )) || exit 1
 if (( OPEN )); then

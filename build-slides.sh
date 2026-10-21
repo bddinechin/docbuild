@@ -39,11 +39,12 @@ args=("$@"); for i in "${!args[@]}"; do
 done
 project_load "$PROJECT_DIR"
 
-OUTDIR=""; ONLY_NOTES=0; FORCE=0
+OUTDIR=""; ONLY_NOTES=0; FORCE=0; KEEP_OLD=0
 while (( $# )); do
   case "$1" in
     --notes)   ONLY_NOTES=1 ;;
     --force)   FORCE=1 ;;
+    --keep-old) KEEP_OLD=1 ;;
     --project) shift ;;
     -o)        shift; OUTDIR="$1" ;;
     -h|--help) sed -n '2,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -168,3 +169,6 @@ build () {  # $1 = suffix, $2... = extra pandoc args
 for suffix in "${TODO[@]}"; do
   if [[ "$suffix" == "_notes" ]]; then build "_notes" -V "beameroption:show notes"; else build ""; fi
 done
+
+# Remove the dated outputs this build supersedes; --keep-old retains them. See cache_prune.
+(( KEEP_OLD )) || cache_prune "$OUTDIR"

@@ -41,10 +41,11 @@ args=("$@"); for i in "${!args[@]}"; do
 done
 project_load "$PROJECT_DIR"
 
-OUTDIR=""; FORCE=0; STRICT=0; NAMED=()
+OUTDIR=""; FORCE=0; KEEP_OLD=0; STRICT=0; NAMED=()
 while (( $# )); do
   case "$1" in
     --force)   FORCE=1 ;;
+    --keep-old) KEEP_OLD=1 ;;
     --strict)  STRICT=1 ;;
     --project) shift ;;
     -o)        shift; OUTDIR="$1" ;;
@@ -145,3 +146,6 @@ if [[ -n "${LATEX_FOLIO_CHECK:-}" ]] && (( ${#built[@]} )); then
     echo "  (folio check skipped: pdftotext not installed)" >&2
   fi
 fi
+
+# Remove the dated outputs this build supersedes; --keep-old retains them. See cache_prune.
+(( KEEP_OLD )) || cache_prune "$OUTDIR"

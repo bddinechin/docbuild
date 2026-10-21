@@ -13,6 +13,7 @@
 #   cache_current KEY HASH DIR          prints the existing filename and returns 0 if up to date
 #   cache_adopt KEY DIR GLOB SRC...     first run: accept an existing output as current
 #   cache_record KEY HASH FILENAME      remember what was built
+#   cache_prune DIR                     delete dated outputs the manifest has superseded
 #
 # The key is the output's stem plus its extension — `docs_wbs.pdf`, `Deck.pptx`. The extension
 # matters: two tools building the same deck into one directory, one as PDF and one as PowerPoint,
@@ -26,6 +27,12 @@
 #
 # The hash covers the sources, not the build scripts or the toolchain, so editing a template or
 # upgrading pandoc will not by itself produce a new dated file. Pass --force in that case.
+#
+# Dated filenames and pruning are two halves of one idea. Keeping the date means a reader can
+# tell which version they were sent; it does not mean keeping every version forever. Once the
+# manifest records a newer build for a document, the older dated file is not history, it is a
+# trap: it sits in the same directory, sorts next to the current one, and is exactly as easy to
+# attach to an email. So a build removes what it supersedes, and `--keep-old` opts out.
 
 CACHE_FILE=""
 
@@ -60,4 +67,24 @@ cache_record() {  # KEY HASH FILENAME
   printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$tmp"
   sort -o "$CACHE_FILE" "$tmp"
   rm -f "$tmp"
+}
+
+cache_prune() {  # DIR
+  # Each manifest entry names the one current output for its key. Any other dated file with the
+  # same stem and extension was current once and has been superseded. A stem with no manifest
+  # entry is left alone: without an entry there is no basis for calling any of its files stale,
+  # and guessing from mtime is how you delete the wrong one.
+  local dir="$1" key hash cur stem ext f removed=0
+  [[ -n "$CACHE_FILE" && -f "$CACHE_FILE" ]] || return 0
+  while IFS=$'\t' read -r key hash cur; do
+    [[ -n "$key" && -n "$cur" && -f "$dir/$cur" ]] || continue
+    stem="${key%.*}"; ext="${key##*.}"
+    for f in "$dir/$stem"_[0-9]*."$ext"; do
+      [[ -f "$f" && "$(basename "$f")" != "$cur" ]] || continue
+      rm -f -- "$f" && printf '  superseded by %s: removed %s\n' "$cur" "$(basename "$f")"
+      removed=$((removed + 1))
+    done
+  done < "$CACHE_FILE"
+  (( removed )) && printf '  %d superseded file(s) removed -- --keep-old retains them next time\n' "$removed"
+  return 0
 }

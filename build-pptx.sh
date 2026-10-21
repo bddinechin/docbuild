@@ -32,10 +32,11 @@ args=("$@"); for i in "${!args[@]}"; do
 done
 project_load "$PROJECT_DIR"
 
-OUTDIR=""; FORCE=0
+OUTDIR=""; FORCE=0; KEEP_OLD=0
 while (( $# )); do
   case "$1" in
     --force)   FORCE=1 ;;
+    --keep-old) KEEP_OLD=1 ;;
     --project) shift ;;
     -o)        shift; OUTDIR="$1" ;;
     -h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -204,3 +205,6 @@ ENDPY
 
 cache_record "$NAME.pptx" "$HASH" "$(basename "$OUT")"
 printf '\n  %-46s -> file://%s\n' "$(basename "$OUT")" "$OUT"
+
+# Remove the dated outputs this build supersedes; --keep-old retains them. See cache_prune.
+(( KEEP_OLD )) || cache_prune "$OUTDIR"
