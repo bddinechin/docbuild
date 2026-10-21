@@ -30,7 +30,7 @@ fileset_all() {
 
 # --- slides, if the project has any (build-slides.sh, build-pptx.sh) ---
 # SLIDES_SRC="docs/presentation-content.md"
-# DIAGRAMS_DIR="docs/diagrams"
+# DIAGRAMS_DIR="docs/diagrams"   # also where build-diagrams.sh looks for .dot sources
 # SLIDES_NAME="Project_slides"
 # SLIDES_TITLE="Project — subject"
 # SLIDES_SUBTITLE="Internal review"

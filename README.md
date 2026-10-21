@@ -122,6 +122,55 @@ become a real PowerPoint object — so a house template can restyle them. `lib/s
 the SVG subset the diagrams use and raises on anything else, so an unsupported construct fails
 the build rather than silently vanishing from the slide.
 
+## Diagrams
+
+`build-diagrams.sh` renders Graphviz sources to the SVG the other builders consume. Source and
+output sit side by side in `DIAGRAMS_DIR` — `D1-cluster.dot` renders to `D1-cluster.svg` — and
+**both are committed**.
+
+```sh
+./build-diagrams.sh            # render what is missing or older than its source
+./build-diagrams.sh --check    # render nothing, fail if any SVG is stale — for CI
+./build-diagrams.sh --force    # re-render everything
+```
+
+Committing a build product needs a reason. Here it is that four consumers want a rendered figure
+and only one of them can run Graphviz: the beamer deck embeds it as vector art, `build-pptx.sh`
+redraws it as native PowerPoint shapes, a Markdown PDF includes it, and a Git host displays it in
+a README. `--check` is what keeps the committed copy honest — the same arrangement as a generated
+source file with a staleness gate, and it fails for the same reason: because someone edited the
+source and did not re-render.
+
+### Why Graphviz rather than a diagram editor
+
+A text source is diffable, reviewable in a pull request, and greppable — the last of which matters
+more than it sounds. A project that gates what it publishes by searching its own files for
+forbidden terms gets no protection at all from a compressed editor format, because the search
+skips binary files. A diagram is as capable of carrying a confidential name as a paragraph is.
+
+Graphviz specifically, over the text-sourced alternatives:
+
+- **It is one small C dependency.** No Node, no JVM, no headless browser, and nothing downloaded
+  at build time. These tools make no network calls by design, and a renderer that fetches a
+  browser to draw a box would undo that.
+- **Its output already fits `lib/svg2pptx.py`.** With `node [shape=box]` a Graphviz SVG uses only
+  `g`, `path`, `polygon`, `text` and `title`, all of which that converter handles, so diagrams
+  reach PowerPoint as editable shapes rather than flat images.
+- **Layout is automatic.** Hand-authored SVG is perfectly good source and reads well, but every
+  edit means recomputing coordinates, which is what stops diagrams being kept current.
+
+The cost is that you do not control placement precisely. For a figure where exact position carries
+meaning — an address map drawn to scale, say — generate the SVG from whatever already holds those
+numbers instead, or write TikZ and accept that it renders only into the PDF.
+
+### The subset check, and why it fails early
+
+Graphviz defaults to `<ellipse>` nodes, which `svg2pptx.py` rejects. Left alone, that surfaces as
+a failed PowerPoint build days after the diagram looked correct in every other output. So the
+renderer validates its own output against the element set the converter accepts and fails
+immediately, naming the fix. Keep the list in `build-diagrams.sh` in step with the element walk in
+`lib/svg2pptx.py`.
+
 ## LaTeX
 
 Some projects keep LaTeX as the master rather than Markdown — a directory of documents sharing
@@ -154,6 +203,7 @@ and the page numbers; `--strict` makes it fail the build.
 | `build-slides.sh` | beamer deck, two variants (with and without notes) |
 | `build-pptx.sh` | the same deck as editable `.pptx` |
 | `build-latex.sh` | LaTeX documents sharing a style file |
+| `build-diagrams.sh` | Graphviz sources to SVG, with a staleness and subset check |
 | `install.sh` | put wrappers into a project |
 | `lib/project.sh` | find and load `docbuild.conf` |
 | `lib/build-cache.sh` | the content-hash manifest |
