@@ -127,6 +127,18 @@ for f in "${FILES[@]}"; do
     sed -e 's/⭐/★/g' -e 's/✅/✓/g' -e 's/⛔/✗/g' \
         -e 's/❓/?/g'  -e 's/➡️/→/g' -e 's/➡/→/g' \
         -e $'s/️//g' "$f" > "$TMP/in.md"
+    # Point image links at the PDF rendering of each figure. pandoc cannot place an SVG without
+    # rsvg-convert and fails the whole document rather than dropping the figure, while SVG is
+    # what the HTML preview and a Git host want -- so the document keeps the .svg link and the
+    # swap happens here, only where a sibling .pdf actually exists. build-diagrams.sh makes them.
+    docdir="$(cd "$(dirname "$f")" && pwd)"
+    while IFS= read -r svg; do
+      # The link is relative to the document, not to wherever render.sh was invoked from.
+      abs="$svg"; [[ "$abs" == /* ]] || abs="$docdir/$abs"
+      [[ -f "${abs%.svg}.pdf" ]] || continue
+      esc="${svg//\//\\/}"
+      sed -i "s/${esc}/${esc%.svg}.pdf/g" "$TMP/in.md"
+    done < <(grep -oE '\(([^)]*\.svg)\)' "$f" | tr -d '()' | sort -u)
     out="$OUTDIR/${stem}_$STAMP.pdf"
     pandoc -f gfm "$TMP/in.md" -o "$out" \
       --lua-filter="$PKG/assets/colwidths.lua" --include-in-header="$HEADER" \
@@ -134,11 +146,13 @@ for f in "${FILES[@]}"; do
       -V mainfont="DejaVu Sans" -V monofont="DejaVu Sans Mono" \
       -V geometry:a4paper -V geometry:margin=1.8cm -V fontsize=10pt \
       -V colorlinks=true -V linkcolor=blue -V urlcolor=blue \
+      --resource-path="$(cd "$(dirname "$f")" && pwd):$PROJECT" \
       --metadata title-meta="$title" "${PDF_OPTS[@]+"${PDF_OPTS[@]}"}"
     cache_record "$stem.pdf" "$hash" "$(basename "$out")"
   else
     out="$OUTDIR/$stem.html"
     pandoc -f gfm "$f" -o "$out" -t html5 --standalone --toc --toc-depth=3 \
+      --resource-path="$(cd "$(dirname "$f")" && pwd):$PROJECT" \
       --metadata pagetitle="$title" --include-in-header="$STYLE"
   fi
   printf '  %-42s -> file://%s\n' "$rel" "$out"
