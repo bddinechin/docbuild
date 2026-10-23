@@ -54,3 +54,10 @@ fileset_all() {
 # PDF_HEADER="docbuild/header.tex"     # replace the packaged LaTeX preamble
 # HTML_STYLE="docbuild/style.html"     # replace the packaged <style> block
 # PDF_OPTS=(-V geometry:margin=2.5cm)  # extra pandoc arguments
+
+# --- circulating PDFs, if the project sends documents to people (sendable.sh) ---
+# An allowlist: a document absent from the map is never copied out.
+# SENDABLE_DIR="$HOME"
+# sendable_map() {
+#   echo "docs_design-note.pdf  myproject-design-note"
+# }

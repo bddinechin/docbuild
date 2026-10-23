@@ -122,6 +122,42 @@ become a real PowerPoint object — so a house template can restyle them. `lib/s
 the SVG subset the diagrams use and raises on anything else, so an unsupported construct fails
 the build rather than silently vanishing from the slide.
 
+## Circulating a document
+
+Build names are for the tools: `docs_cluster-plan_20261023.pdf` says which Markdown file it came
+from, which is right inside the project and wrong in an attachment. `sendable.sh` copies the
+current build out under a name a recipient can read.
+
+```sh
+./sendable.sh           # copy each mapped document, remove the copies it supersedes
+./sendable.sh --list    # show what would happen, change nothing
+./sendable.sh --keep-old
+```
+
+```sh
+SENDABLE_DIR="$HOME"
+sendable_map() {
+  echo "docs_cluster-plan.pdf  myproject-cluster-plan"
+}
+```
+
+Three things worth knowing.
+
+**The mapping is written out, not derived.** The useful name is rarely a transform of the file
+name — `docs_work-computer-todo` wants to go out as `work-todo`, and no rule produces that.
+
+**The date is the build's, not today's.** It comes from the manifest, so a document that has not
+changed keeps the date it last changed. Same principle the dated build names rest on: the stamp
+says when the content changed, not when someone ran a tool.
+
+**The map is an allowlist.** A document absent from it is never copied out, which matters when a
+project holds something that must not circulate — it cannot leave by this route even by accident.
+
+Superseded copies are removed, for the reason the build directory prunes its own. The destination
+is usually a home directory rather than a build directory, so the glob that finds them is exact —
+`<name>-YYYY-MM-DD.pdf` and nothing else, which leaves a `myproject-plan-notes-for-alice.pdf`
+sitting beside it alone.
+
 ## Diagrams
 
 `build-diagrams.sh` renders Graphviz sources to the SVG the other builders consume. Source and
@@ -204,6 +240,7 @@ and the page numbers; `--strict` makes it fail the build.
 | `build-pptx.sh` | the same deck as editable `.pptx` |
 | `build-latex.sh` | LaTeX documents sharing a style file |
 | `build-diagrams.sh` | Graphviz sources to SVG, with a staleness and subset check |
+| `sendable.sh` | copy the current build out under a name fit to send |
 | `install.sh` | put wrappers into a project |
 | `lib/project.sh` | find and load `docbuild.conf` |
 | `lib/build-cache.sh` | the content-hash manifest |
