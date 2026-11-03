@@ -150,29 +150,42 @@ class Renderer:
         self._apply_fill(shape, style)
         self._apply_line(shape, style)
 
+    BEZIER_STEPS = 8   # line segments per cubic curve; Graphviz edges are gentle, 8 reads as smooth
+
     def path(self, el, style):
-        """Open polyline: only M/L commands appear in these diagrams."""
+        """Open polyline, M/L plus cubic C, which Graphviz uses for every spline edge.
+
+        A curve is flattened into BEZIER_STEPS straight segments rather than drawn as a true
+        Bezier: python-pptx's freeform builder takes only line segments, and the result stays an
+        ordinary editable line in PowerPoint.
+        """
         d = el.get("d") or ""
-        if re.search(r"[^MLmlZz0-9.,\s+-]", d):
+        if re.search(r"[^MLCmlcZz0-9.,\s+eE-]", d):
             raise ValueError(f"unsupported path command in {d!r}")
-        tokens = re.findall(r"([MLml])|(-?[\d.]+)", d)
+        tokens = re.findall(r"([MLCmlc])|(-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)", d)
         pts, nums, cmd = [], [], None
         for letter, number in tokens:
             if letter:
-                cmd = letter
-                nums = []
+                cmd, nums = letter, []
+                continue
+            nums.append(float(number))
+            need = 6 if cmd in "Cc" else 2
+            if len(nums) < need:
+                continue
+            base = pts[-1] if (cmd.islower() and pts) else (0.0, 0.0)
+            xy = [(base[0] + nums[i], base[1] + nums[i + 1]) for i in range(0, need, 2)]
+            nums = []
+            if cmd in "Cc":
+                p0 = pts[-1] if pts else xy[0]
+                (p1, p2, p3), n = xy, self.BEZIER_STEPS
+                for k in range(1, n + 1):
+                    t = k / n
+                    a, b, c, e = (1 - t) ** 3, 3 * (1 - t) ** 2 * t, 3 * (1 - t) * t ** 2, t ** 3
+                    pts.append((a * p0[0] + b * p1[0] + c * p2[0] + e * p3[0],
+                                a * p0[1] + b * p1[1] + c * p2[1] + e * p3[1]))
             else:
-                nums.append(float(number))
-                if len(nums) == 2:
-                    x, y = nums
-                    if cmd in "ml" and pts:
-                        x, y = pts[-1][0] + x, pts[-1][1] + y
-                    pts.append((x, y))
-                    nums = []
-                    if cmd == "M":
-                        cmd = "L"
-                    elif cmd == "m":
-                        cmd = "l"
+                pts.append(xy[0])
+                cmd = {"M": "L", "m": "l"}.get(cmd, cmd)
         if len(pts) >= 2:
             self.line(el, style, pts=pts)
 
