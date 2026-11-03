@@ -69,7 +69,7 @@ cache_init "$OUTDIR"
 SOURCES=("$SRC")
 if [[ -d "$DIAGRAMS" ]]; then
   while IFS= read -r f; do SOURCES+=("$f"); done \
-    < <(find "$DIAGRAMS" -maxdepth 1 -name 'D*.svg' | sort)
+    < <(find "$DIAGRAMS" -maxdepth 1 -name '[DF][0-9]*.svg' | sort)
 fi
 HASH="$(cache_hash "${SOURCES[@]}")"
 if (( ! FORCE )); then
@@ -124,7 +124,7 @@ for block in re.split(r'(?m)^(?=#{1,2} )', text):
         continue
 
     # slide: "## 9 — The cluster boundary    ·    D2"
-    m = re.match(r'## (.+?)(?:\s+·\s+(D\d))?\s*$', head)
+    m = re.match(r'## (.+?)(?:\s+·\s+([DF]\d+))?\s*$', head)
     title, diag = m.group(1).strip(), m.group(2)
     body = block[len(head):]
 
@@ -180,7 +180,7 @@ for slide in prs.slides:
 drawn = 0
 for slide in prs.slides:
     titles = [s for s in slide.shapes
-              if s.has_text_frame and re.fullmatch(r'D\d', s.text_frame.text.strip())]
+              if s.has_text_frame and re.fullmatch(r'[DF]\d+', s.text_frame.text.strip())]
     if not titles:
         continue
     key = titles[0].text_frame.text.strip()

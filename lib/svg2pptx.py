@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """svg2pptx — draw a project diagram SVG onto a python-pptx slide as native shapes.
 
-Not a general SVG renderer. It covers exactly the subset the docs/diagrams/D*.svg files use,
+Not a general SVG renderer. It covers exactly the subset the docs/diagrams/F*.svg files use,
 which is deliberately narrow so that the result is editable in PowerPoint: every rect becomes a
 rounded/square autoshape, every line a straight connector, every polygon a freeform, every text a
 text box. Nothing is rasterised and nothing is embedded as a picture.
