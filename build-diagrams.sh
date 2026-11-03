@@ -74,16 +74,28 @@ SRCS=("$DIR"/*.dot)
 # Keep this list in step with lib/svg2pptx.py's element walk.
 SUBSET='g rect line polygon path text title desc defs metadata style svg'
 
+# And this one in step with its path() command set. Checking elements alone was not enough: every
+# Graphviz spline edge is a cubic bezier, so a diagram could pass the element check and still stop
+# a slide build on a path command -- which is the delay this validation exists to prevent.
+# svg2pptx.py flattens C/S/Q/T; elliptical arcs (A) it cannot, and nothing Graphviz emits needs them.
+PATHCMDS='M L Z C S Q T'
+
 validate() {  # SVG
-  python3 - "$1" "$SUBSET" <<'PY'
-import sys, xml.etree.ElementTree as ET
+  python3 - "$1" "$SUBSET" "$PATHCMDS" <<'PY'
+import sys, re, xml.etree.ElementTree as ET
 svg, ok = sys.argv[1], set(sys.argv[2].split())
+pathok = set(sys.argv[3].split()) if len(sys.argv) > 3 else set()
 bad = set()
 def walk(n):
     for ch in n:
         t = ch.tag.split('}')[-1]
-        if t in ok: walk(ch)
-        else: bad.add(t)
+        if t not in ok:
+            bad.add(t)
+            continue
+        if t == 'path':
+            for c in set(re.findall(r'[A-Za-z]', ch.get('d') or '')):
+                if c.upper() not in pathok: bad.add("path command '%s'" % c)
+        walk(ch)
 walk(ET.parse(svg).getroot())
 if bad:
     print(", ".join(sorted(bad)))
@@ -120,7 +132,7 @@ for src in "${SRCS[@]}"; do
     rm -f "$out"
     echo >&2
     echo "build-diagrams.sh: $rel renders SVG that lib/svg2pptx.py cannot convert:" >&2
-    echo "  unsupported element(s): $unsupported" >&2
+    echo "  unsupported element(s) or path command(s): $unsupported" >&2
     echo "  Graphviz defaults to <ellipse> nodes. Set 'node [shape=box]' in the digraph," >&2
     echo "  or extend lib/svg2pptx.py to cover the element." >&2
     exit 1

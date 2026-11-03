@@ -150,29 +150,74 @@ class Renderer:
         self._apply_fill(shape, style)
         self._apply_line(shape, style)
 
+    # Graphviz draws every spline edge as a cubic bezier, so C is the common case and not an
+    # exotic one. PowerPoint freeform shapes take line segments, not beziers, so each curve is
+    # flattened into BEZIER_STEPS chords. At Graphviz's edge curvature that is visually
+    # indistinguishable from the SVG, and it keeps the connector editable as a single shape.
+    BEZIER_STEPS = 8
+
+    @staticmethod
+    def _bezier(p0, p1, p2, p3, steps):
+        out = []
+        for i in range(1, steps + 1):
+            t = i / steps
+            u = 1 - t
+            out.append((u*u*u*p0[0] + 3*u*u*t*p1[0] + 3*u*t*t*p2[0] + t*t*t*p3[0],
+                        u*u*u*p0[1] + 3*u*u*t*p1[1] + 3*u*t*t*p2[1] + t*t*t*p3[1]))
+        return out
+
     def path(self, el, style):
-        """Open polyline: only M/L commands appear in these diagrams."""
+        """Open polyline. M/L/Z as given; C/S/Q/T flattened to chords; arcs unsupported."""
         d = el.get("d") or ""
-        if re.search(r"[^MLmlZz0-9.,\s+-]", d):
+        if re.search(r"[^MLmlZzCcSsQqTt0-9.,\s+eE-]", d):
             raise ValueError(f"unsupported path command in {d!r}")
-        tokens = re.findall(r"([MLml])|(-?[\d.]+)", d)
+        tokens = re.findall(r"([MLmlZzCcSsQqTt])|(-?[\d.]+(?:[eE][+-]?\d+)?)", d)
         pts, nums, cmd = [], [], None
+
+        def cur():
+            return pts[-1] if pts else (0.0, 0.0)
+
+        def rel(x, y):
+            return (cur()[0] + x, cur()[1] + y) if cmd.islower() else (x, y)
+
+        need = {"M": 2, "L": 2, "C": 6, "S": 4, "Q": 4, "T": 2}
+        prev_ctrl = None
         for letter, number in tokens:
             if letter:
                 cmd = letter
                 nums = []
+                continue
+            nums.append(float(number))
+            n = need.get((cmd or "M").upper(), 2)
+            if len(nums) < n:
+                continue
+            up = cmd.upper()
+            if up in ("M", "L"):
+                pts.append(rel(nums[0], nums[1]))
+                prev_ctrl = None
+                if cmd == "M":
+                    cmd = "L"
+                elif cmd == "m":
+                    cmd = "l"
             else:
-                nums.append(float(number))
-                if len(nums) == 2:
-                    x, y = nums
-                    if cmd in "ml" and pts:
-                        x, y = pts[-1][0] + x, pts[-1][1] + y
-                    pts.append((x, y))
-                    nums = []
-                    if cmd == "M":
-                        cmd = "L"
-                    elif cmd == "m":
-                        cmd = "l"
+                p0 = cur()
+                if up == "C":
+                    c1, c2, p3 = rel(nums[0], nums[1]), rel(nums[2], nums[3]), rel(nums[4], nums[5])
+                elif up == "S":
+                    c1 = (2*p0[0] - prev_ctrl[0], 2*p0[1] - prev_ctrl[1]) if prev_ctrl else p0
+                    c2, p3 = rel(nums[0], nums[1]), rel(nums[2], nums[3])
+                elif up == "Q":
+                    q, p3 = rel(nums[0], nums[1]), rel(nums[2], nums[3])
+                    c1 = (p0[0] + 2/3*(q[0]-p0[0]), p0[1] + 2/3*(q[1]-p0[1]))
+                    c2 = (p3[0] + 2/3*(q[0]-p3[0]), p3[1] + 2/3*(q[1]-p3[1]))
+                else:  # T — reflect the previous quadratic control point
+                    q = (2*p0[0] - prev_ctrl[0], 2*p0[1] - prev_ctrl[1]) if prev_ctrl else p0
+                    p3 = rel(nums[0], nums[1])
+                    c1 = (p0[0] + 2/3*(q[0]-p0[0]), p0[1] + 2/3*(q[1]-p0[1]))
+                    c2 = (p3[0] + 2/3*(q[0]-p3[0]), p3[1] + 2/3*(q[1]-p3[1]))
+                pts.extend(self._bezier(p0, c1, c2, p3, self.BEZIER_STEPS))
+                prev_ctrl = c2
+            nums = []
         if len(pts) >= 2:
             self.line(el, style, pts=pts)
 
