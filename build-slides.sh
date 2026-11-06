@@ -23,7 +23,8 @@
 #
 # The source Markdown follows three conventions:
 #   `# Part N — ...`               a section divider frame
-#   `## N — Title    ·    D2`      a slide; the `· D2` suffix names a diagram in DIAGRAMS_DIR
+#   `## N — Title    ·    F2`      a slide; the `· F2` suffix names a diagram in DIAGRAMS_DIR
+#                                  (D2 also accepted: figures were renamed D->F in Nov 2026)
 #   `**On slide**` / `**Notes**`   bullets for the frame, prose for the speaker notes
 # The `**On slide**` label is dropped and everything after `**Notes**` becomes speaker notes,
 # so one file carries both the deck and what to say over it.
@@ -96,7 +97,9 @@ done
 
 # --- diagrams: SVG -> PDF, so xelatex can embed them ---
 if [[ -d "$DIAGRAMS" ]]; then
-  for svg in "$DIAGRAMS"/D*.svg; do
+  # [DF]: figures were renamed D->F in November 2026; a D*.svg glob silently
+  # produced a deck with no figures at all rather than an error.
+  for svg in "$DIAGRAMS"/[DF]*.svg; do
     [[ -e "$svg" ]] || continue
     base="$(basename "$svg" .svg)"; key="${base%%-*}"
     inkscape "$svg" -o "$TMP/$key.pdf" --export-type=pdf 2>/dev/null
@@ -126,8 +129,8 @@ for block in re.split(r'(?m)^(?=#{1,2} )', text):
         out.append(head.rstrip() + '\n')
         continue
 
-    # slide: "## 9 — The cluster boundary    ·    D2"
-    m = re.match(r'## (.+?)(?:\s+·\s+(D\d))?\s*$', head)
+    # slide: "## 9 — The cluster boundary    ·    F2"
+    m = re.match(r'## (.+?)(?:\s+·\s+([DF]\d+))?\s*$', head)
     title, diag = m.group(1).strip(), m.group(2)
     body = block[len(head):]
 
