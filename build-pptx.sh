@@ -17,7 +17,8 @@
 # Rebuilt only when the slide content or a diagram has changed, on the same terms as the PDF
 # builds — see lib/build-cache.sh.
 #
-# Formatting is deliberately plain: pandoc's stock pptx layouts, no theme. The deck is a content
+# Formatting is deliberately plain: pandoc's stock pptx layouts on a widescreen reference, no
+# theme. The deck is a content
 # carrier for a template reformat, not a finished visual design. Speaker notes travel in the
 # notes pane; tables come across as real PowerPoint tables.
 
@@ -147,7 +148,22 @@ for block in re.split(r'(?m)^(?=#{1,2} )', text):
 open(dst, 'w').write('\n'.join(out))
 ENDPY
 
-pandoc "$TMP/deck.md" -t pptx --slide-level=2 -o "$TMP/deck.pptx"
+# Pandoc takes the slide size from its reference document, and its default is 10x5.625in.
+# That is 16:9, but small: a slide dense enough to read as a beamer frame overflows the body
+# placeholder, and PowerPoint does not autofit it -- the last bullets simply fall off. Widen the
+# reference to 13.333x7.5, the size PowerPoint itself calls Widescreen, which is the same aspect
+# and 78% more area at the same point size. Generated from pandoc's own default so there is no
+# binary in this package to drift.
+pandoc --print-default-data-file reference.pptx > "$TMP/ref.pptx"
+python3 - "$TMP/ref.pptx" <<'REFPY'
+import sys
+from pptx import Presentation
+from pptx.util import Inches
+prs = Presentation(sys.argv[1])
+prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+prs.save(sys.argv[1])
+REFPY
+pandoc "$TMP/deck.md" -t pptx --slide-level=2 --reference-doc="$TMP/ref.pptx" -o "$TMP/deck.pptx"
 
 # --- post-process: redraw each diagram slide as native shapes ---
 DECK_TITLE="${SLIDES_TITLE:-$NAME}" DECK_SUBTITLE="${SLIDES_SUBTITLE:-}" \

@@ -261,7 +261,21 @@ class Renderer:
             style = dict(inherited)
             style.update({k: v for k, v in el.attrib.items() if k in INHERITED})
             if tag == "g":
-                self.walk(el, style)
+                # A <g> may move its subtree. Graphviz always does -- it emits negative Y and
+                # brings it into view with translate(4 H-4) on the root group -- so ignoring
+                # transform put every diagram about five inches above the top of the slide.
+                tx, ty, sc = _parse_transform(el.get("transform"))
+                if (tx, ty, sc) == (0.0, 0.0, 1.0):
+                    self.walk(el, style)
+                else:
+                    ox, oy, s = self.ox, self.oy, self.s
+                    # X(v) = ox + v*s; translating by tx then scaling by sc gives
+                    # X'(v) = ox + (tx + v*sc)*s, i.e. a shifted origin and a scaled unit.
+                    self.ox, self.oy, self.s = ox + tx * s, oy + ty * s, s * sc
+                    try:
+                        self.walk(el, style)
+                    finally:
+                        self.ox, self.oy, self.s = ox, oy, s
             elif tag == "rect":
                 self.rect(el, style)
             elif tag == "line":
@@ -276,6 +290,37 @@ class Renderer:
                 continue
             else:
                 raise ValueError(f"unsupported SVG element <{tag}>")
+
+
+def _parse_transform(value):
+    """Return (tx, ty, uniform_scale) for an SVG transform list.
+
+    Only translate, uniform scale, and a zero rotation are supported, which is everything
+    Graphviz emits -- `scale(1 1) rotate(0) translate(4 562)`. Anything else is refused rather
+    than silently misplaced, because a shape in the wrong place is harder to notice than a
+    missing one.
+    """
+    if not value:
+        return 0.0, 0.0, 1.0
+    tx = ty = 0.0
+    sc = 1.0
+    for name, args in re.findall(r"(\w+)\s*\(([^)]*)\)", value):
+        nums = [float(n) for n in re.split(r"[,\s]+", args.strip()) if n]
+        if name == "translate":
+            tx += nums[0]
+            ty += nums[1] if len(nums) > 1 else 0.0
+        elif name == "scale":
+            sx = nums[0]
+            sy = nums[1] if len(nums) > 1 else sx
+            if abs(sx - sy) > 1e-9:
+                raise ValueError(f"non-uniform scale{tuple(nums)} is not supported")
+            sc *= sx
+        elif name == "rotate":
+            if nums and abs(nums[0]) > 1e-9:
+                raise ValueError(f"rotate({nums[0]}) is not supported")
+        else:
+            raise ValueError(f"unsupported transform {name}()")
+    return tx, ty, sc
 
 
 def draw(svg_path, slide, box, drop_background=True):
