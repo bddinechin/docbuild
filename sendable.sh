@@ -88,6 +88,38 @@ while read -r key name; do
     copied=$((copied + 1))
   fi
 
+  # A deck's .pptx travels with its PDF. The PDF is for reading and the .pptx is what the deck is
+  # actually presented from, so circulating only the PDF leaves the usable half in the repository.
+  # Keyed off the pptx build manifest rather than a glob, for the same reason the PDF is: the
+  # manifest is what knows which dated file is current.
+  if [[ -n "${PPTX_OUTDIR:-}" && -f "$PROJECT/$PPTX_OUTDIR/.build-manifest" ]]; then
+    pkey="${key%.pdf}.pptx"
+    pbuild="$(awk -F'\t' -v s="$pkey" '$1 == s { print $3; exit }' \
+              "$PROJECT/$PPTX_OUTDIR/.build-manifest")"
+    if [[ -n "$pbuild" && -f "$PROJECT/$PPTX_OUTDIR/$pbuild" ]]; then
+      pdated="${dated%.pdf}.pptx"
+      if (( LIST )); then
+        printf '  would copy  %s  ->  %s\n' "$pbuild" "$DEST/$pdated"
+      else
+        cp -- "$PROJECT/$PPTX_OUTDIR/$pbuild" "$DEST/$pdated"
+        printf '  %-46s %s\n' "$pdated" "$(cd "$DEST" && du -h "$pdated" | cut -f1)"
+        copied=$((copied + 1))
+      fi
+      if (( ! KEEP_OLD )); then
+        for old in "$DEST/$name"-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].pptx; do
+          [[ -f "$old" && "$(basename "$old")" != "$pdated" ]] || continue
+          if (( LIST )); then
+            printf '  would remove  %s\n' "$(basename "$old")"
+          else
+            rm -f -- "$old"
+            printf '    superseded, removed %s\n' "$(basename "$old")"
+            removed=$((removed + 1))
+          fi
+        done
+      fi
+    fi
+  fi
+
   (( KEEP_OLD )) && continue
   for old in "$DEST/$name"-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].pdf; do
     [[ -f "$old" && "$(basename "$old")" != "$dated" ]] || continue
