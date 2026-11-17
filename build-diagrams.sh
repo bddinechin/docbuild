@@ -8,8 +8,8 @@
 #   build-diagrams.sh --force      re-render everything
 #   build-diagrams.sh --project DIR
 #
-# Source and output live side by side in DIAGRAMS_DIR: D1-cluster.dot renders to D1-cluster.svg
-# and D1-cluster.pdf.
+# Source and output live side by side in DIAGRAMS_DIR: F1-cluster.dot renders to F1-cluster.svg
+# and F1-cluster.pdf.
 # Both are committed. The source is authoritative and the SVG is a build product, but the SVG is
 # committed anyway because four consumers want a rendered figure and only one of them can run
 # Graphviz: the beamer deck embeds it as vector art, build-pptx.sh redraws it as native

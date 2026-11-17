@@ -24,7 +24,8 @@
 # The source Markdown follows three conventions:
 #   `# Part N — ...`               a section divider frame
 #   `## N — Title    ·    F2`      a slide; the `· F2` suffix names a diagram in DIAGRAMS_DIR
-#                                  (D2 also accepted: figures were renamed D->F in Nov 2026)
+#                                  (F<n> or D<n>: the file is <id>-*.svg; figures
+#                                  were renamed D->F in November 2026)
 #   `**On slide**` / `**Notes**`   bullets for the frame, prose for the speaker notes
 # The `**On slide**` label is dropped and everything after `**Notes**` becomes speaker notes,
 # so one file carries both the deck and what to say over it.
@@ -75,7 +76,7 @@ cache_init "$OUTDIR"
 SOURCES=("$SRC")
 if [[ -d "$DIAGRAMS" ]]; then
   while IFS= read -r f; do SOURCES+=("$f"); done \
-    < <(find "$DIAGRAMS" -maxdepth 1 -name 'D*.svg' | sort)
+    < <(find "$DIAGRAMS" -maxdepth 1 -name '[DF][0-9]*.svg' | sort)
 fi
 HASH="$(cache_hash "${SOURCES[@]}")"
 
@@ -99,7 +100,7 @@ done
 if [[ -d "$DIAGRAMS" ]]; then
   # [DF]: figures were renamed D->F in November 2026; a D*.svg glob silently
   # produced a deck with no figures at all rather than an error.
-  for svg in "$DIAGRAMS"/[DF]*.svg; do
+  for svg in "$DIAGRAMS"/[DF][0-9]*.svg; do
     [[ -e "$svg" ]] || continue
     base="$(basename "$svg" .svg)"; key="${base%%-*}"
     inkscape "$svg" -o "$TMP/$key.pdf" --export-type=pdf 2>/dev/null

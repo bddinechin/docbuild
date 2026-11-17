@@ -70,7 +70,7 @@ cache_init "$OUTDIR"
 SOURCES=("$SRC")
 if [[ -d "$DIAGRAMS" ]]; then
   while IFS= read -r f; do SOURCES+=("$f"); done \
-    < <(find "$DIAGRAMS" -maxdepth 1 -name 'D*.svg' | sort)
+    < <(find "$DIAGRAMS" -maxdepth 1 -name '[DF][0-9]*.svg' | sort)
 fi
 HASH="$(cache_hash "${SOURCES[@]}")"
 if (( ! FORCE )); then

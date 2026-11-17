@@ -104,7 +104,7 @@ to say over it:
 ```markdown
 # Part 2 — Architecture
 
-## 6 — Cluster    ·    D1
+## 6 — Cluster    ·    F1
 
 **On slide**
 - four CVA6 cores behind one coherence unit
@@ -113,8 +113,8 @@ to say over it:
 Say why four and not eight: it is the width Culsans supports unmodified.
 ```
 
-`**On slide**` becomes the frame, `**Notes**` becomes the speaker notes, and the `· D1` suffix
-inserts `docs/diagrams/D1-*.svg` as a full-bleed frame after the slide that first refers to it.
+`**On slide**` becomes the frame, `**Notes**` becomes the speaker notes, and the `· F1` suffix
+inserts `docs/diagrams/F1-*.svg` as a full-bleed frame after the slide that first refers to it.
 
 The two builders differ in what they do with the diagrams. The beamer PDF embeds them as vector
 art. The PowerPoint build **redraws them as native shapes** — rect, line, polygon and text each
@@ -161,7 +161,7 @@ sitting beside it alone.
 ## Diagrams
 
 `build-diagrams.sh` renders Graphviz sources to the SVG the other builders consume. Source and
-output sit side by side in `DIAGRAMS_DIR` — `D1-cluster.dot` renders to `D1-cluster.svg` — and
+output sit side by side in `DIAGRAMS_DIR` — `F1-cluster.dot` renders to `F1-cluster.svg` — and
 **both are committed**.
 
 ```sh
