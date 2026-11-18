@@ -12,3 +12,6 @@
 \renewcommand{\arraystretch}{1.25}
 \setlength{\emergencystretch}{3em}
 \hyphenpenalty=200 \tolerance=2000
+% Code blocks at \footnotesize: at the body's 10pt a 76-column block (an ASCII chart, a
+% log excerpt) is wider than a 16:9 frame, and the overflow came out wrapped and mangled.
+\makeatletter\renewcommand*\verbatim@font{\footnotesize\ttfamily}\makeatother
