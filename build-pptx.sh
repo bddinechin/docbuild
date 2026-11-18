@@ -164,7 +164,19 @@ import sys
 from pptx import Presentation
 from pptx.util import Inches
 prs = Presentation(sys.argv[1])
+old_w, old_h = prs.slide_width, prs.slide_height
 prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+# The placeholders are positioned in EMU, not relative to the slide, so widening the slide alone
+# leaves every title and body box at its old geometry, hugging the left of the new slide. Scale
+# each one that carries its own position; a layout placeholder without one inherits the master's.
+sx, sy = prs.slide_width / old_w, prs.slide_height / old_h
+for owner in [prs.slide_master, *prs.slide_layouts]:
+    for ph in owner.placeholders:
+        if ph._element.spPr.find(
+                '{http://schemas.openxmlformats.org/drawingml/2006/main}xfrm') is None:
+            continue
+        ph.left, ph.top = int(ph.left * sx), int(ph.top * sy)
+        ph.width, ph.height = int(ph.width * sx), int(ph.height * sy)
 prs.save(sys.argv[1])
 REFPY
 pandoc "$TMP/deck.md" -t pptx --slide-level=2 --reference-doc="$TMP/ref.pptx" -o "$TMP/deck.pptx"
@@ -196,6 +208,85 @@ for slide in prs.slides:
         else:
             top, height = BODY_TOP, min(height, prs.slide_height - BODY_TOP - MARGIN)
         shape.left, shape.top, shape.width, shape.height = left, top, width, height
+
+# Code blocks. pandoc 2.9 writes a fenced block as one bullet-less paragraph holding a single
+# Courier run, its lines joined by literal newlines, at the body text size and with no autofit,
+# so a 15-line listing runs off the slide -- and PowerPoint does not break on those newlines at
+# all. Each line becomes its own run separated by <a:br/>, at a size fitted to the box: narrow
+# enough for the longest line, short enough for the code plus an estimate of the prose around
+# it. That prose is set to 20pt on such a slide -- the master's 28pt leaves a listing a third of
+# the box -- so the estimate is not a guess about inherited sizes. Every other body box gets
+# normAutofit, which LibreOffice and PowerPoint use to shrink a bullet list that overflows.
+from lxml import etree
+from pptx.oxml.ns import qn
+
+COURIER = qn('a:rPr') + '/' + qn('a:latin')
+
+
+def is_code(p):
+    ppr, runs = p.find(qn('a:pPr')), p.findall(qn('a:r'))
+    return (ppr is not None and ppr.find(qn('a:buNone')) is not None and bool(runs)
+            and all(r.find(COURIER) is not None
+                    and r.find(COURIER).get('typeface') == 'Courier' for r in runs))
+
+
+def para_text(p):
+    return ''.join(t.text or '' for t in p.iter(qn('a:t')))
+
+
+def code_rpr(sz):
+    rpr = etree.Element(qn('a:rPr'), sz=sz)
+    etree.SubElement(rpr, qn('a:latin'), typeface='Courier New')
+    return rpr
+
+
+EMU_PT, INSET, PROSE_PT = 12700, 2 * 91440, 20
+for slide in prs.slides:
+    for shape in slide.shapes:
+        if not shape.has_text_frame or (shape.is_placeholder
+                                        and shape.placeholder_format.idx == 0):
+            continue
+        body = shape.text_frame._txBody
+        bodypr = body.find(qn('a:bodyPr'))
+        paras = body.findall(qn('a:p'))
+        code = [p for p in paras if is_code(p)]
+        # A box holding code has its sizes fitted below, so it says noAutofit outright: the
+        # master's bodyPr carries normAutofit, and LibreOffice's shrink is coarse enough to scale
+        # a box that only just overflows down to half its size.
+        if bodypr is not None and not len(bodypr):
+            etree.SubElement(bodypr, qn('a:noAutofit' if code else 'a:normAutofit'))
+        if not code or not shape.width or not shape.height:
+            continue
+        w_pt = (shape.width - INSET) / EMU_PT
+        h_pt = (shape.height - INSET) / EMU_PT
+        blocks = [para_text(p).rstrip('\n').split('\n') for p in code]
+        for p in paras:
+            if p not in code:
+                for rpr in p.iter(qn('a:rPr'), qn('a:endParaRPr')):
+                    rpr.set('sz', str(PROSE_PT * 100))
+        widest = max(len(ln.expandtabs(8)) for b in blocks for ln in b)
+        nlines = sum(len(b) for b in blocks)
+        # prose wrapped at half an em per character, 1.2 line height, plus paragraph spacing
+        per_line = max(1, int(w_pt / (0.5 * PROSE_PT)))
+        prose = sum(1.2 * PROSE_PT * -(-len(para_text(p)) // per_line) + 6
+                    for p in paras if p not in code and para_text(p).strip())
+        size = min(14.0, w_pt / (0.6 * max(widest, 1)),
+                   max(h_pt - prose, h_pt / 3) / (1.2 * nlines + 0.5 * len(code)))
+        sz = str(int(max(7.0, size) * 2) * 50)    # hundredths of a point, in half-point steps
+        for p, lines in zip(code, blocks):
+            for r in p.findall(qn('a:r')):
+                p.remove(r)
+            end = p.find(qn('a:endParaRPr'))
+            if end is not None:
+                p.remove(end)
+            for i, ln in enumerate(lines):
+                if i:
+                    etree.SubElement(p, qn('a:br')).append(code_rpr(sz))
+                r = etree.SubElement(p, qn('a:r'))
+                r.append(code_rpr(sz))
+                etree.SubElement(r, qn('a:t')).text = ln
+            if end is not None:                        # the schema wants it last
+                p.append(end)
 
 drawn = 0
 for slide in prs.slides:
