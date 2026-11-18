@@ -36,6 +36,9 @@ fileset_all() {
 # SLIDES_SUBTITLE="Internal review"
 # SLIDES_DATE="September 2026"
 # PPTX_OUTDIR="docs/pptx"
+# SLIDES_SYNTAX_DIR="docs/slides/syntax"  # KDE syntax definitions (*.xml) for languages pandoc
+#                                         # lacks; a fence tagged ```mlir uses the one named MLIR
+# SLIDES_HIGHLIGHT_STYLE="pygments"       # any pandoc --highlight-style; default pygments
 
 # --- LaTeX documents, if the project has any (build-latex.sh) ---
 # For projects where LaTeX rather than Markdown is the master: a directory of documents sharing

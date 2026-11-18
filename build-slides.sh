@@ -78,6 +78,17 @@ if [[ -d "$DIAGRAMS" ]]; then
   while IFS= read -r f; do SOURCES+=("$f"); done \
     < <(find "$DIAGRAMS" -maxdepth 1 -name '[DF][0-9]*.svg' | sort)
 fi
+# Syntax highlighting. pandoc colours a fenced block tagged with a language it knows; a language
+# it does not know (an ISA's assembly, an MLIR dialect) comes from a KDE syntax definition, and
+# SLIDES_SYNTAX_DIR names a directory of them. They are sources like the deck: a changed grammar
+# re-colours the deck, so they enter the cache hash too.
+HL_ARGS=(--highlight-style="${SLIDES_HIGHLIGHT_STYLE:-pygments}")
+if [[ -n "${SLIDES_SYNTAX_DIR:-}" ]]; then
+  SYNDIR="$SLIDES_SYNTAX_DIR"; [[ "$SYNDIR" == /* ]] || SYNDIR="$PROJECT/$SYNDIR"
+  [[ -d "$SYNDIR" ]] || { echo "${0##*/}: SLIDES_SYNTAX_DIR is not a directory: $SYNDIR" >&2; exit 1; }
+  while IFS= read -r f; do HL_ARGS+=(--syntax-definition="$f"); SOURCES+=("$f"); done \
+    < <(find "$SYNDIR" -maxdepth 1 -name '*.xml' | sort)
+fi
 HASH="$(cache_hash "${SOURCES[@]}")"
 
 VARIANTS=(); (( ONLY_NOTES )) || VARIANTS+=(""); VARIANTS+=("_notes")
@@ -165,6 +176,7 @@ build () {  # $1 = suffix, $2... = extra pandoc args
   [[ "$suffix" == "_notes" ]] && meta_title="$meta_title (with notes)"
   pandoc "$TMP/deck.md" -t beamer -o "$OUTDIR/${NAME}${suffix}_$STAMP.pdf" \
     --pdf-engine=xelatex --slide-level=2 --include-in-header="$PKG/assets/beamer-header.tex" \
+    "${HL_ARGS[@]}" \
     -V aspectratio=169 -V theme=default -V fontsize=10pt -V classoption=t \
     -V mainfont="DejaVu Sans" -V sansfont="DejaVu Sans" -V monofont="DejaVu Sans Mono" \
     -V title="${SLIDES_TITLE:-$NAME}" -M title-meta="$meta_title" \

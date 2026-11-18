@@ -72,6 +72,17 @@ if [[ -d "$DIAGRAMS" ]]; then
   while IFS= read -r f; do SOURCES+=("$f"); done \
     < <(find "$DIAGRAMS" -maxdepth 1 -name '[DF][0-9]*.svg' | sort)
 fi
+# Syntax highlighting. pandoc colours a fenced block tagged with a language it knows; a language
+# it does not know (an ISA's assembly, an MLIR dialect) comes from a KDE syntax definition, and
+# SLIDES_SYNTAX_DIR names a directory of them. They are sources like the deck: a changed grammar
+# re-colours the deck, so they enter the cache hash too.
+HL_ARGS=(--highlight-style="${SLIDES_HIGHLIGHT_STYLE:-pygments}")
+if [[ -n "${SLIDES_SYNTAX_DIR:-}" ]]; then
+  SYNDIR="$SLIDES_SYNTAX_DIR"; [[ "$SYNDIR" == /* ]] || SYNDIR="$PROJECT/$SYNDIR"
+  [[ -d "$SYNDIR" ]] || { echo "${0##*/}: SLIDES_SYNTAX_DIR is not a directory: $SYNDIR" >&2; exit 1; }
+  while IFS= read -r f; do HL_ARGS+=(--syntax-definition="$f"); SOURCES+=("$f"); done \
+    < <(find "$SYNDIR" -maxdepth 1 -name '*.xml' | sort)
+fi
 HASH="$(cache_hash "${SOURCES[@]}")"
 if (( ! FORCE )); then
   if have="$(cache_current "$NAME.pptx" "$HASH" "$OUTDIR")" \
@@ -179,7 +190,8 @@ for owner in [prs.slide_master, *prs.slide_layouts]:
         ph.width, ph.height = int(ph.width * sx), int(ph.height * sy)
 prs.save(sys.argv[1])
 REFPY
-pandoc "$TMP/deck.md" -t pptx --slide-level=2 --reference-doc="$TMP/ref.pptx" -o "$TMP/deck.pptx"
+pandoc "$TMP/deck.md" -t pptx --slide-level=2 --reference-doc="$TMP/ref.pptx" "${HL_ARGS[@]}" \
+  -o "$TMP/deck.pptx"
 
 # --- post-process: redraw each diagram slide as native shapes ---
 DECK_TITLE="${SLIDES_TITLE:-$NAME}" DECK_SUBTITLE="${SLIDES_SUBTITLE:-}" \
@@ -209,16 +221,19 @@ for slide in prs.slides:
             top, height = BODY_TOP, min(height, prs.slide_height - BODY_TOP - MARGIN)
         shape.left, shape.top, shape.width, shape.height = left, top, width, height
 
-# Code blocks. pandoc 2.9 writes a fenced block as one bullet-less paragraph holding a single
-# Courier run, its lines joined by literal newlines, at the body text size and with no autofit,
-# so a 15-line listing runs off the slide -- and PowerPoint does not break on those newlines at
-# all. Each line becomes its own run separated by <a:br/>, at a size fitted to the box: narrow
-# enough for the longest line, short enough for the code plus an estimate of the prose around
-# it. That prose is set to 20pt on such a slide -- the master's 28pt leaves a listing a third of
-# the box -- so the estimate is not a guess about inherited sizes. Every other body box gets
-# normAutofit, which LibreOffice and PowerPoint use to shrink a bullet list that overflows.
+# Code blocks. pandoc writes a fenced block as one bullet-less paragraph of Courier runs at the
+# body text size and with no autofit, so a 15-line listing runs off the slide. Its lines are
+# separated by literal newlines inside a run (pandoc 2.9, where PowerPoint does not break on them
+# at all) or by <a:br/> (pandoc 3), and a highlighted block is one run per token, each with its
+# own colour and weight. Every line becomes runs separated by <a:br/>, each run keeping its
+# colour, bold and italic, at a size fitted to the box: narrow enough for the longest line, short
+# enough for the code plus an estimate of the prose around it. That prose is set to 20pt on such
+# a slide -- the master's 28pt leaves a listing a third of the box -- so the estimate is not a
+# guess about inherited sizes. Every other body box gets normAutofit, which LibreOffice and
+# PowerPoint use to shrink a bullet list that overflows.
 from lxml import etree
 from pptx.oxml.ns import qn
+import copy
 
 COURIER = qn('a:rPr') + '/' + qn('a:latin')
 
@@ -234,8 +249,34 @@ def para_text(p):
     return ''.join(t.text or '' for t in p.iter(qn('a:t')))
 
 
-def code_rpr(sz):
+def code_lines(p):
+    """The paragraph as lines of (rPr, text) segments, whichever way pandoc broke them."""
+    lines = [[]]
+    for el in p:
+        if el.tag == qn('a:br'):
+            lines.append([])
+        elif el.tag == qn('a:r'):
+            rpr, text = el.find(qn('a:rPr')), ''.join(t.text or '' for t in el.iter(qn('a:t')))
+            for i, piece in enumerate(text.split('\n')):
+                if i:
+                    lines.append([])
+                if piece:
+                    lines[-1].append((rpr, piece))
+    while len(lines) > 1 and not lines[-1]:
+        lines.pop()
+    return lines
+
+
+def code_rpr(sz, like=None):
+    """Courier New at SZ, keeping the colour, bold and italic of the token's own rPr."""
     rpr = etree.Element(qn('a:rPr'), sz=sz)
+    if like is not None:
+        for attr in ('b', 'i'):
+            if like.get(attr) is not None:
+                rpr.set(attr, like.get(attr))
+        fill = like.find(qn('a:solidFill'))
+        if fill is not None:
+            rpr.append(copy.deepcopy(fill))
     etree.SubElement(rpr, qn('a:latin'), typeface='Courier New')
     return rpr
 
@@ -259,12 +300,12 @@ for slide in prs.slides:
             continue
         w_pt = (shape.width - INSET) / EMU_PT
         h_pt = (shape.height - INSET) / EMU_PT
-        blocks = [para_text(p).rstrip('\n').split('\n') for p in code]
+        blocks = [code_lines(p) for p in code]
         for p in paras:
             if p not in code:
                 for rpr in p.iter(qn('a:rPr'), qn('a:endParaRPr')):
                     rpr.set('sz', str(PROSE_PT * 100))
-        widest = max(len(ln.expandtabs(8)) for b in blocks for ln in b)
+        widest = max(len(''.join(t for _, t in ln).expandtabs(8)) for b in blocks for ln in b)
         nlines = sum(len(b) for b in blocks)
         # prose wrapped at half an em per character, 1.2 line height, plus paragraph spacing
         per_line = max(1, int(w_pt / (0.5 * PROSE_PT)))
@@ -274,17 +315,18 @@ for slide in prs.slides:
                    max(h_pt - prose, h_pt / 3) / (1.2 * nlines + 0.5 * len(code)))
         sz = str(int(max(7.0, size) * 2) * 50)    # hundredths of a point, in half-point steps
         for p, lines in zip(code, blocks):
-            for r in p.findall(qn('a:r')):
-                p.remove(r)
+            for el in p.findall(qn('a:r')) + p.findall(qn('a:br')):
+                p.remove(el)
             end = p.find(qn('a:endParaRPr'))
             if end is not None:
                 p.remove(end)
             for i, ln in enumerate(lines):
                 if i:
                     etree.SubElement(p, qn('a:br')).append(code_rpr(sz))
-                r = etree.SubElement(p, qn('a:r'))
-                r.append(code_rpr(sz))
-                etree.SubElement(r, qn('a:t')).text = ln
+                for rpr, text in ln or [(None, '')]:
+                    r = etree.SubElement(p, qn('a:r'))
+                    r.append(code_rpr(sz, rpr))
+                    etree.SubElement(r, qn('a:t')).text = text
             if end is not None:                        # the schema wants it last
                 p.append(end)
 

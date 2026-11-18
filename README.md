@@ -140,6 +140,13 @@ become a real PowerPoint object — so a house template can restyle them. `lib/s
 the SVG subset the diagrams use and raises on anything else, so an unsupported construct fails
 the build rather than silently vanishing from the slide.
 
+Code excerpts are **syntax-coloured** in both outputs when the fence names a language
+(```` ```c ````). pandoc knows a few hundred; for one it does not (an ISA's assembly, an MLIR
+dialect) put a KDE syntax definition in a directory and name it in `SLIDES_SYNTAX_DIR`, and a
+fence tagged with the definition's lowercased `name` picks it up. `SLIDES_HIGHLIGHT_STYLE` picks
+the palette (pandoc's `--highlight-style`, default `pygments`). In the PowerPoint build each token
+stays its own run with its own colour and weight, at the size the code box is fitted to.
+
 ## Circulating a document
 
 Build names are for the tools: `docs_cluster-plan_20261023.pdf` says which Markdown file it came
