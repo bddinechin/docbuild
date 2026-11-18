@@ -3,7 +3,7 @@
 -- GFM pipe tables carry no column widths, so pandoc emits natural-width `l` columns that never
 -- wrap and run hundreds of points off the page. Derive relative widths from the longest cell in
 -- each column instead, square-rooted so one very long column does not crush the others.
-local function len(cell) return #pandoc.utils.stringify(cell) end
+local function len(cell) return #pandoc.utils.stringify(cell.contents) end
 function Table(tbl)
   local n = #tbl.colspecs
   if n == 0 then return tbl end
