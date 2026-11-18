@@ -12,8 +12,19 @@
 #   cache_hash SRC...                   SHA-256 over the concatenated sources
 #   cache_current KEY HASH DIR          prints the existing filename and returns 0 if up to date
 #   cache_adopt KEY DIR GLOB SRC...     first run: accept an existing output as current
-#   cache_record KEY HASH FILENAME      remember what was built
+#   cache_record KEY HASH FILENAME [SRCREL...]   remember what was built, and from what
 #   cache_prune DIR                     delete dated outputs the manifest has superseded
+#   cache_orphans DIR ROOT KNOWN...     classify entries no longer claimed by a caller
+#   cache_forget KEY                    drop an entry
+#
+# A fourth field records the sources an entry was built from, relative to the project root and
+# comma-joined. It exists so that an output whose source was renamed or deleted can be told apart
+# from an output another tool in the same directory owns -- build-slides.sh writes deck PDFs into
+# the same directory and the same manifest, and they belong to no fileset. Without recorded
+# provenance the two are indistinguishable, and the safe reading of "not in any fileset" is
+# "somebody else's", which is why orphans accumulated unnoticed. Entries written before this
+# field existed, or by a caller that passes no sources, keep three fields and are reported as
+# provenance-unknown rather than guessed at.
 #
 # The key is the output's stem plus its extension — `docs_wbs.pdf`, `Deck.pptx`. The extension
 # matters: two tools building the same deck into one directory, one as PDF and one as PowerPoint,
@@ -61,10 +72,27 @@ cache_adopt() {  # KEY DIR GLOB SRC...
   basename "$newest"
 }
 
-cache_record() {  # KEY HASH FILENAME
+cache_record() {  # KEY HASH FILENAME [SRCREL...]
+  local key="$1" hash="$2" file="$3"; shift 3
+  local srcs="" s tmp
+  for s in "$@"; do srcs="${srcs:+$srcs,}$s"; done
+  tmp="$(mktemp)"
+  awk -F'\t' -v s="$key" '$1 != s' "$CACHE_FILE" > "$tmp"
+  printf '%s\t%s\t%s\t%s\n' "$key" "$hash" "$file" "$srcs" >> "$tmp"
+  sort -o "$CACHE_FILE" "$tmp"
+  rm -f "$tmp"
+}
+
+# The sources an entry was built from, or empty when it predates the field. Callers use this to
+# decide whether an entry can be reasoned about, never to rebuild from.
+cache_sources() {  # KEY
+  [[ -n "$CACHE_FILE" && -f "$CACHE_FILE" ]] || return 1
+  awk -F'\t' -v s="$1" '$1 == s { print $4; exit }' "$CACHE_FILE"
+}
+
+cache_forget() {  # KEY
   local tmp; tmp="$(mktemp)"
   awk -F'\t' -v s="$1" '$1 != s' "$CACHE_FILE" > "$tmp"
-  printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$tmp"
   sort -o "$CACHE_FILE" "$tmp"
   rm -f "$tmp"
 }
@@ -74,9 +102,9 @@ cache_prune() {  # DIR
   # same stem and extension was current once and has been superseded. A stem with no manifest
   # entry is left alone: without an entry there is no basis for calling any of its files stale,
   # and guessing from mtime is how you delete the wrong one.
-  local dir="$1" key hash cur stem ext f removed=0
+  local dir="$1" key hash cur srcs stem ext f removed=0
   [[ -n "$CACHE_FILE" && -f "$CACHE_FILE" ]] || return 0
-  while IFS=$'\t' read -r key hash cur; do
+  while IFS=$'\t' read -r key hash cur srcs; do
     [[ -n "$key" && -n "$cur" && -f "$dir/$cur" ]] || continue
     stem="${key%.*}"; ext="${key##*.}"
     for f in "$dir/$stem"_[0-9]*."$ext"; do
@@ -86,5 +114,40 @@ cache_prune() {  # DIR
     done
   done < "$CACHE_FILE"
   (( removed )) && printf '  %d superseded file(s) removed -- --keep-old retains them next time\n' "$removed"
+  return 0
+}
+
+# An entry is an orphan when the caller no longer claims its key and every source it was built
+# from is gone: a document renamed or deleted leaves both its dated output and its manifest entry
+# behind, and cache_prune cannot see either, because it only ever reasons about keys it still
+# knows. Classification only -- what to do about one is the caller's policy, and deleting on a
+# guess is how the wrong file goes.
+#
+# Prints one tab-separated line per unclaimed entry:
+#   orphan <key> <file> <sources>     every recorded source is missing
+#   unknown <key> <file>              no recorded provenance, so no basis for a verdict
+cache_orphans() {  # DIR ROOT KNOWN...
+  local dir="$1" root="$2"; shift 2
+  [[ -n "$CACHE_FILE" && -f "$CACHE_FILE" ]] || return 0
+  local -A known=()
+  local k; for k in "$@"; do known["$k"]=1; done
+  local key hash cur srcs s present
+  while IFS=$'\t' read -r key hash cur srcs; do
+    [[ -n "$key" ]] || continue
+    [[ -z "${known[$key]:-}" ]] || continue
+    if [[ -z "$srcs" ]]; then
+      printf 'unknown\t%s\t%s\n' "$key" "$cur"
+      continue
+    fi
+    present=0
+    while IFS= read -r s; do
+      [[ -n "$s" ]] || continue
+      [[ "$s" == /* ]] || s="$root/$s"
+      [[ -e "$s" ]] && { present=1; break; }
+      # printf with the newline: without it `read` hits EOF on the last field and the loop
+      # body never runs for it, so a single-source entry reads as having no surviving source.
+    done < <(printf '%s\n' "$srcs" | tr ',' '\n')
+    (( present )) || printf 'orphan\t%s\t%s\t%s\n' "$key" "$cur" "$srcs"
+  done < "$CACHE_FILE"
   return 0
 }

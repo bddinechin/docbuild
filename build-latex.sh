@@ -105,7 +105,11 @@ for doc in "${DOCS[@]}"; do
   if (( ! FORCE )); then
     if have="$(cache_current "$stem.pdf" "$hash" "$OUTDIR")" \
        || { have="$(cache_adopt "$stem.pdf" "$OUTDIR" "$glob" "$doc" ${INCLUDES[@]+"${INCLUDES[@]}"})" \
-            && cache_record "$stem.pdf" "$hash" "$have"; }; then
+            && cache_record "$stem.pdf" "$hash" "$have" "${doc#"$PROJECT"/}"; }; then
+      # A hit on an entry predating recorded provenance: the content matches, so the
+      # source is known. Fill it in rather than wait for the next real rebuild.
+      [[ -n "$(cache_sources "$stem.pdf")" ]] \
+        || cache_record "$stem.pdf" "$hash" "$have" "${doc#"$PROJECT"/}"
       printf '  %-40s == %s\n' "$stem.tex" "$have"
       built+=("$OUTDIR/$have")
       continue
@@ -124,7 +128,7 @@ for doc in "${DOCS[@]}"; do
     }
   done
   cp "$TMP/$stem/$stem.pdf" "$OUTDIR/$name.pdf"
-  cache_record "$stem.pdf" "$hash" "$name.pdf"
+  cache_record "$stem.pdf" "$hash" "$name.pdf" "${doc#"$PROJECT"/}"
   printf '  %-40s -> file://%s\n' "$stem.tex" "$OUTDIR/$name.pdf"
   built+=("$OUTDIR/$name.pdf")
 done

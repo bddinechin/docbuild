@@ -96,6 +96,24 @@ the same name. It runs after the whole fileset rather than per document, so a ru
 nothing still clears what earlier runs left, including for documents not named on the command
 line.
 
+That narrowness left one case uncovered. Pruning only ever reasons about keys it still knows, so
+**renaming or deleting a document left its PDF and its manifest entry behind indefinitely** and
+nothing noticed. Comparing the filesets against the directory is not enough to fix it: deck PDFs
+are built into the same directory by `build-slides.sh` and belong to no fileset, so "in no
+fileset" reads equally as "somebody else's output" and as "left over".
+
+So the manifest records a **fourth field, the sources an entry was built from**, and an entry is
+an orphan when the caller no longer claims its key *and* every recorded source is gone.
+`--prune-only` reports orphans; `--prune-orphans` removes them and drops their entries. Removal
+is opt-in because an orphan is a judgement about provenance rather than a fact about dates: the
+source is gone, so nothing can rebuild the file to compare, and what sits in the directory may be
+the last copy of a document somebody withdrew on purpose. An entry carrying no recorded source —
+written before the field existed — is reported as such and never acted on; one build fills it in,
+without a rebuild, because a content hit already proves which source it came from.
+
+A document the conf still lists but whose file has gone is *not* an orphan: the fileset claims
+the key, so the build reports the missing source instead. The stale thing there is the conf.
+
 ## Slides
 
 `build-slides.sh` and `build-pptx.sh` read one Markdown file that carries both the deck and what

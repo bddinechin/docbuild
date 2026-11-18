@@ -76,7 +76,11 @@ HASH="$(cache_hash "${SOURCES[@]}")"
 if (( ! FORCE )); then
   if have="$(cache_current "$NAME.pptx" "$HASH" "$OUTDIR")" \
      || { have="$(cache_adopt "$NAME.pptx" "$OUTDIR" "${NAME}_[0-9]*.pptx" "${SOURCES[@]}")" \
-          && cache_record "$NAME.pptx" "$HASH" "$have"; }; then
+          && cache_record "$NAME.pptx" "$HASH" "$have" "$SLIDES_SRC"; }; then
+    # A hit on an entry predating recorded provenance: the content matches, so the
+    # source is known. Fill it in rather than wait for the next real rebuild.
+    [[ -n "$(cache_sources "$NAME.pptx")" ]] \
+      || cache_record "$NAME.pptx" "$HASH" "$have" "$SLIDES_SRC"
     printf '  %-46s == %s\n' "$NAME" "$have"
     exit 0
   fi
@@ -219,7 +223,7 @@ prs.save(out)
 print(f'\n  {len(prs.slides._sldIdLst)} slides, {drawn} diagrams as native shapes')
 ENDPY
 
-cache_record "$NAME.pptx" "$HASH" "$(basename "$OUT")"
+cache_record "$NAME.pptx" "$HASH" "$(basename "$OUT")" "$SLIDES_SRC"
 printf '\n  %-46s -> file://%s\n' "$(basename "$OUT")" "$OUT"
 
 # Remove the dated outputs this build supersedes; --keep-old retains them. See cache_prune.

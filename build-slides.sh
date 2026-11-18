@@ -87,7 +87,11 @@ for suffix in "${VARIANTS[@]}"; do
   if (( ! FORCE )); then
     if have="$(cache_current "$stem.pdf" "$HASH" "$OUTDIR")" \
        || { have="$(cache_adopt "$stem.pdf" "$OUTDIR" "${stem}_[0-9]*.pdf" "${SOURCES[@]}")" \
-            && cache_record "$stem.pdf" "$HASH" "$have"; }; then
+            && cache_record "$stem.pdf" "$HASH" "$have" "$SLIDES_SRC"; }; then
+      # A hit on an entry predating recorded provenance: the content matches, so the
+      # source is known. Fill it in rather than wait for the next real rebuild.
+      [[ -n "$(cache_sources "$stem.pdf")" ]] \
+        || cache_record "$stem.pdf" "$HASH" "$have" "$SLIDES_SRC"
       printf '  %-46s == %s\n' "$stem" "$have"
       continue
     fi
@@ -166,7 +170,7 @@ build () {  # $1 = suffix, $2... = extra pandoc args
     -V title="${SLIDES_TITLE:-$NAME}" -M title-meta="$meta_title" \
     -V subtitle="${SLIDES_SUBTITLE:-}" \
     -V date="${SLIDES_DATE:-$(date +'%B %Y')}" "$@"
-  cache_record "$NAME$suffix.pdf" "$HASH" "${NAME}${suffix}_$STAMP.pdf"
+  cache_record "$NAME$suffix.pdf" "$HASH" "${NAME}${suffix}_$STAMP.pdf" "$SLIDES_SRC"
   printf '  %-46s -> file://%s\n' "${NAME}${suffix}_$STAMP.pdf" "$OUTDIR/${NAME}${suffix}_$STAMP.pdf"
 }
 

@@ -15,7 +15,8 @@
 #   render.sh -o DIR ...        output directory
 #   render.sh --force ...       rebuild even where the source is unchanged
 #   render.sh --keep-old ...    keep dated outputs that this build supersedes
-#   render.sh --prune-only      remove superseded outputs and build nothing
+#   render.sh --prune-only      remove superseded outputs, report orphans, build nothing
+#   render.sh --prune-orphans   also remove the orphans, and build nothing
 #   render.sh --project DIR     the project to read docbuild.conf from (default: $PWD)
 #
 # PDF filenames carry the build date — Output_Design_Note_20260903.pdf — so successive
@@ -44,12 +45,12 @@ done
 project_load "$PROJECT_DIR"
 
 usage() {
-  sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   [[ -n "$DOC_ABOUT" ]] && printf '\nProject: %s\n' "$DOC_ABOUT"
   printf 'Filesets: %s\n' "$(project_filesets | sed 's/^/--/' | tr '\n' ' ')"
 }
 
-OUTDIR=""; OPEN=0; PDF=0; FORCE=0; KEEP_OLD=0; PRUNE_ONLY=0; FILES=()
+OUTDIR=""; OPEN=0; PDF=0; FORCE=0; KEEP_OLD=0; PRUNE_ONLY=0; PRUNE_ORPHANS=0; FILES=()
 while (( $# )); do
   case "$1" in
     --pdf)     PDF=1 ;;
@@ -57,6 +58,7 @@ while (( $# )); do
     --force)   FORCE=1 ;;
     --keep-old) KEEP_OLD=1 ;;
     --prune-only) PRUNE_ONLY=1; PDF=1 ;;
+    --prune-orphans) PRUNE_ONLY=1; PRUNE_ORPHANS=1; PDF=1 ;;
     --project) shift ;;
     -o)        shift; OUTDIR="$1" ;;
     -h|--help) usage; exit 0 ;;
@@ -74,6 +76,60 @@ if (( ! ${#FILES[@]} )); then
 fi
 [[ -n "$OUTDIR" ]] || { (( PDF )) && OUTDIR="$(project_pdf_outdir)" || OUTDIR="$(project_html_outdir)"; }
 
+# Every document any declared fileset can name, as a manifest key. An entry outside this set is
+# either another tool's output sharing the directory -- build-slides.sh writes deck PDFs here, and
+# they belong to no fileset -- or what a renamed or deleted document left behind. Which of the two
+# is decided by recorded provenance, never by the key alone.
+known_keys() {
+  local name f rel
+  while IFS= read -r name; do
+    while IFS= read -r f; do
+      rel="${f#"$PROJECT"/}"
+      printf '%s.pdf\n' "$(echo "${rel%.md}" | tr '/' '_')"
+    done < <(project_fileset "$name")
+  done < <(project_filesets)
+}
+
+# Report, and with --prune-orphans remove, the outputs no fileset claims any more. Deleting is
+# opt-in because an orphan is a judgement about provenance rather than a fact about dates: the
+# source is gone, so nothing can rebuild the file to check, and the one in the directory may be
+# the only copy left of a document somebody deliberately withdrew.
+sweep_orphans() {  # DIR
+  local dir="$1" keys=() lines=() line kind key cur srcs stem ext f removed=0 found=0 unknown=0
+  while IFS= read -r line; do keys+=("$line"); done < <(known_keys | sort -u)
+  # Collected before acting: cache_forget rewrites the manifest cache_orphans is reading.
+  while IFS= read -r line; do lines+=("$line"); done \
+    < <(cache_orphans "$dir" "$PROJECT" ${keys[@]+"${keys[@]}"})
+  for line in ${lines[@]+"${lines[@]}"}; do
+    IFS=$'\t' read -r kind key cur srcs <<< "$line"
+    case "$kind" in
+      unknown) unknown=$((unknown + 1)) ;;
+      orphan)
+        found=$((found + 1))
+        if (( PRUNE_ORPHANS )); then
+          stem="${key%.*}"; ext="${key##*.}"
+          for f in "$dir/$stem"_[0-9]*."$ext"; do
+            [[ -f "$f" ]] || continue
+            rm -f -- "$f" && printf '  orphaned by %s: removed %s\n' "$srcs" "$(basename "$f")"
+            removed=$((removed + 1))
+          done
+          cache_forget "$key"
+        else
+          printf '  orphan: %s -- built from %s, which no longer exists\n' "$cur" "$srcs"
+        fi ;;
+    esac
+  done
+  if (( found && ! PRUNE_ORPHANS )); then
+    printf '  %d orphan(s); --prune-orphans removes them and their manifest entries\n' "$found"
+  elif (( removed )); then
+    printf '  %d orphaned file(s) removed, %d manifest entrie(s) dropped\n' "$removed" "$found"
+  fi
+  # Entries from before provenance was recorded, and every deck PDF, land here. Saying so beats
+  # silence: the alternative reading of this count is that the directory is clean.
+  (( unknown )) && printf '  %d entrie(s) claimed by no fileset and carrying no recorded source: left alone\n' "$unknown"
+  return 0
+}
+
 # Sweeping an output directory that accumulated superseded files before pruning existed should
 # not require rebuilding anything -- a rebuild would change dates and content, which is a larger
 # action than the one being asked for.
@@ -82,6 +138,7 @@ if (( PRUNE_ONLY )); then
   cache_init "$OUTDIR"
   echo "== pruning $OUTDIR =="
   cache_prune "$OUTDIR"
+  sweep_orphans "$OUTDIR"
   exit 0
 fi
 
@@ -116,7 +173,11 @@ for f in "${FILES[@]}"; do
       # already built from this exact content, or built before the manifest existed
       if have="$(cache_current "$stem.pdf" "$hash" "$OUTDIR")" \
          || { have="$(cache_adopt "$stem.pdf" "$OUTDIR" "${stem}_[0-9]*.pdf" "$f")" \
-              && cache_record "$stem.pdf" "$hash" "$have"; }; then
+              && cache_record "$stem.pdf" "$hash" "$have" "$rel"; }; then
+        # A hit on an entry written before provenance was recorded is the only chance to fill it
+        # in without forcing a rebuild: the content matches, so the source is known to be this one.
+        [[ -n "$(cache_sources "$stem.pdf")" ]] \
+          || cache_record "$stem.pdf" "$hash" "$have" "$rel"
         printf '  %-42s == %s\n' "$rel" "$have"
         rendered+=("$OUTDIR/$have")
         continue
@@ -148,7 +209,7 @@ for f in "${FILES[@]}"; do
       -V colorlinks=true -V linkcolor=blue -V urlcolor=blue \
       --resource-path="$(cd "$(dirname "$f")" && pwd):$PROJECT" \
       --metadata title-meta="$title" "${PDF_OPTS[@]+"${PDF_OPTS[@]}"}"
-    cache_record "$stem.pdf" "$hash" "$(basename "$out")"
+    cache_record "$stem.pdf" "$hash" "$(basename "$out")" "$rel"
   else
     out="$OUTDIR/$stem.html"
     # --embed-resources, because the preview lands in a temporary directory and an image link
