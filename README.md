@@ -249,6 +249,26 @@ margin. That is the silent failure of a `longtable` row too tall for the space l
 it is not split, it runs over the folio, and LaTeX reports nothing. The check reports the file
 and the page numbers; `--strict` makes it fail the build.
 
+## Checking a machine
+
+```sh
+./doctor.sh            # check what this project uses, then build a test PDF
+./doctor.sh --all      # every tool group, used or not
+./doctor.sh --quick    # static checks only
+```
+
+`doctor.sh` checks for each tool the project uses (judged from `docbuild.conf` and the wrappers
+the project has), the minimum version where one matters, the LaTeX packages the preamble and
+pandoc's template load, and the DejaVu fonts. It exits non-zero on anything missing.
+
+The floors are the oldest versions the scripts work with, each tied to the feature that sets it:
+**pandoc 2.19** for `--embed-resources`, **inkscape 1.0** for its `-o`/`--export-type` syntax.
+
+A version number is not proof, which is why the check ends with a **test render**: a small
+document with a table and a box-drawing block, through the real `colwidths.lua` and
+`header.tex`. pandoc 3.5 clears the version floor and still failed every build until
+`colwidths.lua` stopped passing a `Cell` to `stringify`. Only running the filter shows that.
+
 ## Layout
 
 | | |
@@ -259,6 +279,7 @@ and the page numbers; `--strict` makes it fail the build.
 | `build-latex.sh` | LaTeX documents sharing a style file |
 | `build-diagrams.sh` | Graphviz sources to SVG, with a staleness and subset check |
 | `sendable.sh` | copy the current build out under a name fit to send |
+| `doctor.sh` | check the tools, versions, LaTeX packages and fonts, then do a test render |
 | `install.sh` | put wrappers into a project |
 | `lib/project.sh` | find and load `docbuild.conf` |
 | `lib/build-cache.sh` | the content-hash manifest |
