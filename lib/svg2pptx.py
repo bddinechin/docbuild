@@ -333,14 +333,17 @@ def draw(svg_path, slide, box, drop_background=True):
     root = ET.parse(svg_path).getroot()
     vb = (root.get("viewBox") or "").split()
     if len(vb) == 4:
-        _, _, vw, vh = (float(v) for v in vb)
+        vx, vy, vw, vh = (float(v) for v in vb)
     else:
+        vx, vy = 0.0, 0.0
         vw, vh = _num(root.get("width"), 1000), _num(root.get("height"), 600)
 
     left, top, width, height = box
     scale = min(width / vw, height / vh)
-    ox = left + (width - vw * scale) / 2
-    oy = top + (height - vh * scale) / 2
+    # A viewBox need not start at the origin -- lib/figtitle.py crops a figure's title band off
+    # the top by moving vy -- so the drawing is shifted by the viewBox origin.
+    ox = left + (width - vw * scale) / 2 - vx * scale
+    oy = top + (height - vh * scale) / 2 - vy * scale
 
     if drop_background:
         for el in list(root):

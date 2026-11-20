@@ -118,7 +118,10 @@ if [[ -d "$DIAGRAMS" ]]; then
   for svg in "$DIAGRAMS"/[DF][0-9]*.svg; do
     [[ -e "$svg" ]] || continue
     base="$(basename "$svg" .svg)"; key="${base%%-*}"
-    inkscape "$svg" -o "$TMP/$key.pdf" --export-type=pdf 2>/dev/null
+    # The figure's own "F3 — ..." title becomes the frame title, so it is lifted out of the
+    # drawing rather than shown twice (lib/figtitle.py).
+    python3 "$PKG/lib/figtitle.py" "$svg" "$TMP/$key.svg" > "$TMP/$key.title"
+    inkscape "$TMP/$key.svg" -o "$TMP/$key.pdf" --export-type=pdf 2>/dev/null
   done
 fi
 
@@ -160,9 +163,16 @@ for block in re.split(r'(?m)^(?=#{1,2} )', text):
 
     if diag and diag not in seen and os.path.exists(f'{tmp}/{diag}.pdf'):
         seen.add(diag)
-        out.append(f'## {diag} {{.plain}}\n\n\\begin{{center}}\n'
-                   f'\\includegraphics[width=\\linewidth,height=0.88\\textheight,keepaspectratio]'
-                   f'{{{tmp}/{diag}.pdf}}\n\\end{{center}}\n\n')
+        tpath = f'{tmp}/{diag}.title'
+        ftitle = open(tpath).read().strip() if os.path.exists(tpath) else ''
+        if ftitle:                                 # the figure's own title, in the title bar
+            out.append(f'## {ftitle}\n\n\\begin{{center}}\n'
+                       f'\\includegraphics[width=\\linewidth,height=0.82\\textheight,keepaspectratio]'
+                       f'{{{tmp}/{diag}.pdf}}\n\\end{{center}}\n\n')
+        else:
+            out.append(f'## {diag} {{.plain}}\n\n\\begin{{center}}\n'
+                       f'\\includegraphics[width=\\linewidth,height=0.88\\textheight,keepaspectratio]'
+                       f'{{{tmp}/{diag}.pdf}}\n\\end{{center}}\n\n')
 
 open(dst, 'w').write('\n'.join(out))
 ENDPY

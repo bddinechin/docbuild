@@ -196,14 +196,20 @@ pandoc "$TMP/deck.md" -t pptx --slide-level=2 --reference-doc="$TMP/ref.pptx" "$
 # --- post-process: redraw each diagram slide as native shapes ---
 DECK_TITLE="${SLIDES_TITLE:-$NAME}" DECK_SUBTITLE="${SLIDES_SUBTITLE:-}" \
 PYTHONPATH="$PKG/lib" python3 - "$TMP/deck.pptx" "$OUT" "$DIAGRAMS" <<'ENDPY'
-import glob, os, re, sys
+import glob, os, re, sys, tempfile
 from pptx import Presentation
+from pptx.util import Pt
+import figtitle
 import svg2pptx
+
+tmpdir = tempfile.mkdtemp()
 
 deck, out, diagdir = sys.argv[1:4]
 prs = Presentation(deck)
 MARGIN = 182880                                    # 0.2in, in EMU
 box = (MARGIN, MARGIN, prs.slide_width - 2 * MARGIN, prs.slide_height - 2 * MARGIN)
+FIG_TOP = 1100000                                  # below the title band
+fig_box = (MARGIN, FIG_TOP, prs.slide_width - 2 * MARGIN, prs.slide_height - FIG_TOP - MARGIN)
 
 # pandoc uses Content-with-Caption when a slide carries both a list and a table, which parks the
 # title in the left column. Restore a title band and turn the rest into two columns.
@@ -340,9 +346,23 @@ for slide in prs.slides:
     matches = glob.glob(os.path.join(diagdir, key + '-*.svg'))
     if not matches:
         continue
-    for shape in list(slide.shapes):               # a full-bleed diagram carries its own title
+    # The figure's own "F3 — ..." title goes in the title placeholder and is lifted out of the
+    # drawing (lib/figtitle.py), so it is not shown twice. Without one, the diagram is drawn
+    # full-bleed and carries its own title, as before.
+    stripped = os.path.join(tmpdir, key + '.svg')
+    ftitle = figtitle.strip(matches[0], stripped)
+    for shape in list(slide.shapes):
+        if ftitle and shape._element is titles[0]._element:   # proxies differ, elements do not
+            continue
         shape._element.getparent().remove(shape._element)
-    n = svg2pptx.draw(matches[0], slide, box)
+    if ftitle:
+        tf = titles[0].text_frame
+        tf.text = ftitle
+        for run in tf.paragraphs[0].runs:
+            run.font.size = Pt(24)
+        n = svg2pptx.draw(stripped, slide, fig_box)
+    else:
+        n = svg2pptx.draw(matches[0], slide, box)
     print(f'  {os.path.basename(matches[0])}  ->  {n} shapes')
     drawn += 1
 
