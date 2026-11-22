@@ -191,6 +191,7 @@ build () {  # $1 = suffix, $2... = extra pandoc args
     -V mainfont="DejaVu Sans" -V sansfont="DejaVu Sans" -V monofont="DejaVu Sans Mono" \
     -V title="${SLIDES_TITLE:-$NAME}" -M title-meta="$meta_title" \
     -V subtitle="${SLIDES_SUBTITLE:-}" \
+    ${SLIDES_AUTHOR:+-V author="$SLIDES_AUTHOR"} \
     -V date="${SLIDES_DATE:-$(date +'%B %Y')}" "$@"
   cache_record "$NAME$suffix.pdf" "$HASH" "${NAME}${suffix}_$STAMP.pdf" "$SLIDES_SRC"
   printf '  %-46s -> file://%s\n' "${NAME}${suffix}_$STAMP.pdf" "$OUTDIR/${NAME}${suffix}_$STAMP.pdf"
