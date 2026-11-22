@@ -7,7 +7,14 @@
 \setbeamercolor{structure}{fg=black!72}
 \setbeamercolor{frametitle}{fg=black!88,bg=white}
 \setbeamerfont{frametitle}{size=\large,series=\bfseries}
-\setbeamerfont{note page}{size=\small}
+% Speaker notes: beamer clips a note that overflows its page -- silently, with no warning in the
+% log -- and the note page is slide-sized, so the default template (thumbnail of the slide, then
+% the text at \small) holds about 1300 characters. Decks were losing the tails of their longest
+% notes, including source and plan lines at the end. Dropping the thumbnail and setting
+% \scriptsize takes the capacity to roughly 2900 characters, which fits every note in the three
+% decks with headroom. The page count does not change: one note page per frame, as before.
+\setbeamerfont{note page}{size=\scriptsize}
+\setbeamertemplate{note page}{\vspace*{0.3em}\scriptsize\insertnote\par}
 \AtBeginEnvironment{longtable}{\footnotesize\RaggedRight}
 \renewcommand{\arraystretch}{1.25}
 \setlength{\emergencystretch}{3em}
