@@ -28,8 +28,8 @@ cd /path/to/project
 ./render.sh --all --pdf     # a named fileset, as dated PDFs
 ```
 
-Add `build-slides.sh`, `build-pptx.sh` and `build-deck.sh` to the `install.sh` line for a project that has a
-slide deck.
+Add `build-deck.sh` to the `install.sh` line for a project that has a slide deck — and
+`build-slides.sh` or `build-pptx.sh` only for one that wants the beamer or pandoc renderings.
 
 The wrapper finds the package in `$DOCBUILD`, then `.docbuild/` in the project, then
 `~/docbuild` — so the package can be cloned once per machine, or vendored per project, without
@@ -116,7 +116,7 @@ the key, so the build reports the missing source instead. The stale thing there 
 
 ## Slides
 
-`build-slides.sh` and `build-pptx.sh` read one Markdown file that carries both the deck and what
+The deck builders read one Markdown file that carries both the deck and what
 to say over it:
 
 ```markdown
@@ -134,7 +134,7 @@ Say why four and not eight: it is the width Culsans supports unmodified.
 `**On slide**` becomes the frame, `**Notes**` becomes the speaker notes, and the `· F1` suffix
 inserts `docs/diagrams/F1-*.svg` as a full-bleed frame after the slide that first refers to it.
 
-The two builders differ in what they do with the diagrams. The beamer PDF embeds them as vector
+The two older builders differ in what they do with the diagrams. The beamer PDF embeds them as vector
 art. The PowerPoint build **redraws them as native shapes** — rect, line, polygon and text each
 become a real PowerPoint object — so a house template can restyle them. `lib/svg2pptx.py` covers
 the SVG subset the diagrams use and raises on anything else, so an unsupported construct fails
@@ -147,9 +147,10 @@ fence tagged with the definition's lowercased `name` picks it up. `SLIDES_HIGHLI
 the palette (pandoc's `--highlight-style`, default `pygments`). In the PowerPoint build each token
 stays its own run with its own colour and weight, at the size the code box is fitted to.
 
-### The designed deck: `build-deck.sh`
+### The default: `build-deck.sh`
 
-`build-deck.sh` reads the same source and renders it the other way round: **the `.pptx` is the
+`build-deck.sh` is the deck builder to use. It reads the same source as the two older builders
+below and renders it the other way round: **the `.pptx` is the
 master and the PDFs are exported from it** by LibreOffice, so the PowerPoint file and the PDF are
 one rendering and cannot differ. `lib/deck.py` lays out every slide itself with one style kit — a
 part kicker over the title, an accent rule, a footer with the slide number, coloured part
@@ -165,8 +166,13 @@ notes that does not fit at the floor is reported. The text face is **Calibri**, 
 its metric clone **Carlito** (`fonts-crosextra-carlito`), which is also what LibreOffice draws
 with; `doctor.sh` fails without it, because the measured layout would no longer be the one drawn.
 
-Outputs go to `DECK_OUTDIR` (default `deck/`): `<name>_YYYYMMDD.pptx`, `.pdf`, and
-`<name>_notes_YYYYMMDD.pdf`, one notes page per slide. Not yet done: syntax colouring of code
+Its outputs replace the older builders', under the same names and in the same places:
+`<name>_YYYYMMDD.pdf` and `<name>_notes_YYYYMMDD.pdf` (one notes page per slide) in
+`PDF_OUTDIR`, `<name>_YYYYMMDD.pptx` in `PPTX_OUTDIR`, so `sendable.sh` circulates them with no
+change to `sendable_map`. Set `DECK_OUTDIR` to keep all three in one directory of their own
+instead, to compare with a beamer build for instance; `sendable.sh` then looks there first. The
+cache entries are tagged with the engine, so a beamer PDF built from the same source is never
+taken for this one — but running an older builder does overwrite these outputs. Not yet done: syntax colouring of code
 blocks, which `build-pptx.sh` has.
 
 ## Circulating a document
@@ -303,9 +309,9 @@ document with a table and a box-drawing block, through the real `colwidths.lua` 
 | | |
 |---|---|
 | `render.sh` | documents: HTML preview, dated PDF |
-| `build-slides.sh` | beamer deck, two variants (with and without notes) |
-| `build-pptx.sh` | the same deck as editable `.pptx` |
-| `build-deck.sh` | the same deck laid out as a designed `.pptx`, with its PDFs exported from it |
+| `build-deck.sh` | the deck: a designed `.pptx`, and its PDFs (with and without notes) exported from it |
+| `build-slides.sh` | the deck as beamer PDFs, two variants — the older rendering |
+| `build-pptx.sh` | the deck through pandoc's pptx writer — the older rendering |
 | `build-latex.sh` | LaTeX documents sharing a style file |
 | `build-diagrams.sh` | Graphviz sources to SVG, with a staleness and subset check |
 | `sendable.sh` | copy the current build out under a name fit to send |

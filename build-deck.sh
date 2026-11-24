@@ -4,7 +4,7 @@
 # build-deck.sh — build a designed deck: one PowerPoint file, and the PDFs exported from it.
 #
 #   build-deck.sh                -> <name>_YYYYMMDD.pptx, .pdf and _notes_YYYYMMDD.pdf
-#   build-deck.sh -o DIR         output directory (default DECK_OUTDIR, else deck/)
+#   build-deck.sh -o DIR         one output directory for all three
 #   build-deck.sh --force        rebuild even where the sources are unchanged
 #   build-deck.sh --keep-old     keep the dated outputs this build supersedes
 #   build-deck.sh --project DIR
@@ -14,6 +14,13 @@
 # slide with one style kit, sizing each text box from the metrics of the font that will render
 # it, and LibreOffice exports the PDF and the speaker-notes PDF from that file. There is one
 # rendering, so the PDF and the PowerPoint cannot drift apart, and nothing is left to autofit.
+#
+# This is the default deck builder. Its outputs replace those of the two builders it supersedes,
+# under the same names and in the same places: the PDFs in PDF_OUTDIR, the .pptx in PPTX_OUTDIR,
+# so sendable.sh and anything else that reads those manifests picks them up unchanged. Set
+# DECK_OUTDIR to keep all three apart instead -- to compare with a beamer build, say; sendable.sh
+# looks there first when it is set. build-slides.sh and build-pptx.sh remain for a project that
+# wants beamer typography, but a build with them overwrites these outputs, and the reverse.
 #
 # Needs pandoc (to parse), python3 with python-pptx and Pillow (to lay out), LibreOffice (to
 # export), and the Carlito font, Calibri's metric clone, so that the measured layout is the one
@@ -49,9 +56,13 @@ fi
 SRC="$PROJECT/$SLIDES_SRC"
 DIAGRAMS="$PROJECT/${DIAGRAMS_DIR:-docs/diagrams}"
 NAME="${SLIDES_NAME:-slides}"
-if [[ -z "$OUTDIR" ]]; then
-  OUTDIR="${DECK_OUTDIR:-deck}"
-  [[ "$OUTDIR" == /* ]] || OUTDIR="$PROJECT/$OUTDIR"
+abs () { [[ "$1" == /* ]] && printf '%s\n' "$1" || printf '%s\n' "$PROJECT/$1"; }
+if [[ -n "$OUTDIR" ]]; then
+  PDF_DIR="$OUTDIR"; PPTX_DIR="$OUTDIR"
+elif [[ -n "${DECK_OUTDIR:-}" ]]; then
+  PDF_DIR="$(abs "$DECK_OUTDIR")"; PPTX_DIR="$PDF_DIR"
+else
+  PDF_DIR="$(project_pdf_outdir)"; PPTX_DIR="$(abs "${PPTX_OUTDIR:-docs/pptx}")"
 fi
 command -v pandoc >/dev/null || { echo "build-deck.sh: pandoc not installed" >&2; exit 1; }
 python3 -P -c 'import pptx, PIL' 2>/dev/null \
@@ -59,22 +70,30 @@ python3 -P -c 'import pptx, PIL' 2>/dev/null \
 SOFFICE="$(command -v soffice || command -v libreoffice || true)"
 [[ -n "$SOFFICE" ]] || { echo "build-deck.sh: LibreOffice (soffice) not installed" >&2; exit 1; }
 
-mkdir -p "$OUTDIR"
+mkdir -p "$PDF_DIR" "$PPTX_DIR"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 STAMP="$(date +%Y%m%d)"
 
-cache_init "$OUTDIR"
 SOURCES=("$SRC")
 if [[ -d "$DIAGRAMS" ]]; then
   while IFS= read -r f; do SOURCES+=("$f"); done \
     < <(find "$DIAGRAMS" -maxdepth 1 -name '[DF][0-9]*.svg' | sort)
 fi
-HASH="$(cache_hash "${SOURCES[@]}")"
-# The three outputs are made together, so the .pptx entry stands for all of them.
-if (( ! FORCE )) && have="$(cache_current "$NAME.pptx" "$HASH" "$OUTDIR")" \
-   && [[ -e "$OUTDIR/${have%.pptx}.pdf" ]]; then
-  printf '  %-46s == %s\n' "$NAME" "$have"
-  exit 0
+# The hash is tagged with the engine. The keys are the ones build-slides.sh and build-pptx.sh
+# use, so without the tag their output from the same source would read as current here, and the
+# beamer PDF would be kept as if it were this one.
+HASH="$(printf '%s build-deck\n' "$(cache_hash "${SOURCES[@]}")" | sha256sum | cut -d' ' -f1)"
+# The three outputs are made together; all three must be current to skip.
+if (( ! FORCE )); then
+  cache_init "$PPTX_DIR"
+  if have="$(cache_current "$NAME.pptx" "$HASH" "$PPTX_DIR")"; then
+    cache_init "$PDF_DIR"
+    if cache_current "$NAME.pdf" "$HASH" "$PDF_DIR" >/dev/null \
+       && cache_current "${NAME}_notes.pdf" "$HASH" "$PDF_DIR" >/dev/null; then
+      printf '  %-46s == %s\n' "$NAME" "$have"
+      exit 0
+    fi
+  fi
 fi
 
 PPTX="${NAME}_$STAMP.pptx"
@@ -93,18 +112,22 @@ export_pdf () {  # $1 = filter spec, $2 = output name
     echo "build-deck.sh: LibreOffice export failed:" >&2; sed 's/^/  /' "$TMP/soffice.log" >&2
     exit 1
   fi
-  mv "$dir/${PPTX%.pptx}.pdf" "$OUTDIR/$2"
+  mv "$dir/${PPTX%.pptx}.pdf" "$PDF_DIR/$2"
 }
 export_pdf pdf "${NAME}_$STAMP.pdf"
 export_pdf 'pdf:impress_pdf_Export:{"ExportNotesPages":{"type":"boolean","value":"true"},"ExportOnlyNotesPages":{"type":"boolean","value":"true"}}' \
   "${NAME}_notes_$STAMP.pdf"
-mv "$TMP/$PPTX" "$OUTDIR/$PPTX"
+mv "$TMP/$PPTX" "$PPTX_DIR/$PPTX"
 
+# Two manifests when the directories differ, one when they are the same: record and prune each
+# directory against its own.
+cache_init "$PPTX_DIR"
 cache_record "$NAME.pptx" "$HASH" "$PPTX" "$SLIDES_SRC"
+(( KEEP_OLD )) || [[ "$PPTX_DIR" == "$PDF_DIR" ]] || cache_prune "$PPTX_DIR"
+cache_init "$PDF_DIR"
 cache_record "$NAME.pdf" "$HASH" "${NAME}_$STAMP.pdf" "$SLIDES_SRC"
 cache_record "${NAME}_notes.pdf" "$HASH" "${NAME}_notes_$STAMP.pdf" "$SLIDES_SRC"
-for f in "$PPTX" "${NAME}_$STAMP.pdf" "${NAME}_notes_$STAMP.pdf"; do
-  printf '  %-46s -> file://%s\n' "$f" "$OUTDIR/$f"
-done
-
-(( KEEP_OLD )) || cache_prune "$OUTDIR"
+printf '  %-46s -> file://%s\n' "$PPTX" "$PPTX_DIR/$PPTX" \
+  "${NAME}_$STAMP.pdf" "$PDF_DIR/${NAME}_$STAMP.pdf" \
+  "${NAME}_notes_$STAMP.pdf" "$PDF_DIR/${NAME}_notes_$STAMP.pdf"
+(( KEEP_OLD )) || cache_prune "$PDF_DIR"

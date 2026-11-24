@@ -10,9 +10,9 @@
 #   doctor.sh --project DIR    the project to read docbuild.conf from (default: $PWD)
 #
 # A group is checked when the project uses it: render always; diagrams when DIAGRAMS_DIR holds
-# .dot sources or the project has a build-diagrams.sh wrapper; slides when SLIDES_SRC is set or
-# there is a build-slides.sh wrapper; pptx when there is a build-pptx.sh wrapper; deck when there
-# is a build-deck.sh wrapper or DECK_OUTDIR is set; latex when LATEX_DIR is set. Exits non-zero if anything required is missing or too old.
+# .dot sources or the project has a build-diagrams.sh wrapper; deck -- the default deck builder --
+# when SLIDES_SRC is set or there is a build-deck.sh wrapper; slides (beamer) and pptx only when
+# their own wrappers are there; latex when LATEX_DIR is set. Exits non-zero if anything required is missing or too old.
 #
 # The version floors are the oldest releases the scripts actually work with, not the newest
 # release tested. Each one names the feature that sets it, so the floor can be revisited when
@@ -91,9 +91,9 @@ uses() {
     render)   return 0 ;;
     diagrams) [[ -x "$PROJECT/build-diagrams.sh" ]] && return 0
               [[ -n "${DIAGRAMS_DIR:-}" ]] && compgen -G "$PROJECT/$DIAGRAMS_DIR/*.dot" >/dev/null ;;
-    slides)   [[ -n "${SLIDES_SRC:-}" || -x "$PROJECT/build-slides.sh" ]] ;;
+    slides)   [[ -x "$PROJECT/build-slides.sh" ]] ;;
     pptx)     [[ -x "$PROJECT/build-pptx.sh" ]] ;;
-    deck)     [[ -x "$PROJECT/build-deck.sh" || -n "${DECK_OUTDIR:-}" ]] ;;
+    deck)     [[ -n "${SLIDES_SRC:-}" || -x "$PROJECT/build-deck.sh" ]] ;;
     latex)    [[ -n "${LATEX_DIR:-}" ]] ;;
   esac
 }

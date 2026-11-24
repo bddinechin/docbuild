@@ -58,17 +58,37 @@ DEST="${SENDABLE_DIR:-$HOME}"
 [[ "$DEST" == /* ]] || DEST="$PROJECT/$DEST"
 [[ -d "$DEST" ]] || { echo "sendable.sh: no such directory: $DEST" >&2; exit 1; }
 
-SRC="$(project_pdf_outdir)"
-cache_init "$SRC"
+# Where a build may be: the deck directory first when the project keeps build-deck.sh's output
+# apart, then the usual PDF and PowerPoint directories. The first manifest that names the key
+# with its file present wins, so a deck kept in DECK_OUTDIR shadows an older build elsewhere.
+abs () { [[ "$1" == /* ]] && printf '%s\n' "$1" || printf '%s\n' "$PROJECT/$1"; }
+PDF_DIRS=(); PPTX_DIRS=()
+if [[ -n "${DECK_OUTDIR:-}" ]]; then
+  PDF_DIRS+=("$(abs "$DECK_OUTDIR")"); PPTX_DIRS+=("$(abs "$DECK_OUTDIR")")
+fi
+PDF_DIRS+=("$(project_pdf_outdir)")
+[[ -n "${PPTX_OUTDIR:-}" ]] && PPTX_DIRS+=("$(abs "$PPTX_OUTDIR")")
+
+# lookup KEY DIR... -> prints "DIR<TAB>FILE" for the current build of KEY, or nothing
+lookup () {
+  local key="$1" dir f; shift
+  for dir in "$@"; do
+    [[ -f "$dir/.build-manifest" ]] || continue
+    f="$(awk -F'\t' -v s="$key" '$1 == s { print $3; exit }' "$dir/.build-manifest")"
+    [[ -n "$f" && -f "$dir/$f" ]] && { printf '%s\t%s\n' "$dir" "$f"; return 0; }
+  done
+  return 0          # not found is an empty answer, not a failure: set -e must not end the run
+}
 
 copied=0; removed=0; missing=0
 while read -r key name; do
   [[ -n "$key" && -n "$name" ]] || continue
 
   # The manifest is authoritative about which dated file is the current build of a document.
-  build="$(awk -F'\t' -v s="$key" '$1 == s { print $3; exit }' "$SRC/.build-manifest")"
-  if [[ -z "$build" || ! -f "$SRC/$build" ]]; then
-    printf '  MISSING   %-30s no current build — run render.sh --pdf\n' "$key" >&2
+  hit="$(lookup "$key" "${PDF_DIRS[@]}")"
+  SRC="${hit%%$'\t'*}"; build="${hit#*$'\t'}"
+  if [[ -z "$hit" ]]; then
+    printf '  MISSING   %-30s no current build — run render.sh --pdf, or build-deck.sh\n' "$key" >&2
     missing=$((missing + 1)); continue
   fi
 
@@ -92,31 +112,29 @@ while read -r key name; do
   # actually presented from, so circulating only the PDF leaves the usable half in the repository.
   # Keyed off the pptx build manifest rather than a glob, for the same reason the PDF is: the
   # manifest is what knows which dated file is current.
-  if [[ -n "${PPTX_OUTDIR:-}" && -f "$PROJECT/$PPTX_OUTDIR/.build-manifest" ]]; then
-    pkey="${key%.pdf}.pptx"
-    pbuild="$(awk -F'\t' -v s="$pkey" '$1 == s { print $3; exit }' \
-              "$PROJECT/$PPTX_OUTDIR/.build-manifest")"
-    if [[ -n "$pbuild" && -f "$PROJECT/$PPTX_OUTDIR/$pbuild" ]]; then
-      pdated="${dated%.pdf}.pptx"
-      if (( LIST )); then
-        printf '  would copy  %s  ->  %s\n' "$pbuild" "$DEST/$pdated"
-      else
-        cp -- "$PROJECT/$PPTX_OUTDIR/$pbuild" "$DEST/$pdated"
-        printf '  %-46s %s\n' "$pdated" "$(cd "$DEST" && du -h "$pdated" | cut -f1)"
-        copied=$((copied + 1))
-      fi
-      if (( ! KEEP_OLD )); then
-        for old in "$DEST/$name"-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].pptx; do
-          [[ -f "$old" && "$(basename "$old")" != "$pdated" ]] || continue
-          if (( LIST )); then
-            printf '  would remove  %s\n' "$(basename "$old")"
-          else
-            rm -f -- "$old"
-            printf '    superseded, removed %s\n' "$(basename "$old")"
-            removed=$((removed + 1))
-          fi
-        done
-      fi
+  phit=""
+  (( ${#PPTX_DIRS[@]} )) && phit="$(lookup "${key%.pdf}.pptx" "${PPTX_DIRS[@]}")"
+  if [[ -n "$phit" ]]; then
+    PSRC="${phit%%$'\t'*}"; pbuild="${phit#*$'\t'}"
+    pdated="${dated%.pdf}.pptx"
+    if (( LIST )); then
+      printf '  would copy  %s  ->  %s\n' "$pbuild" "$DEST/$pdated"
+    else
+      cp -- "$PSRC/$pbuild" "$DEST/$pdated"
+      printf '  %-46s %s\n' "$pdated" "$(cd "$DEST" && du -h "$pdated" | cut -f1)"
+      copied=$((copied + 1))
+    fi
+    if (( ! KEEP_OLD )); then
+      for old in "$DEST/$name"-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].pptx; do
+        [[ -f "$old" && "$(basename "$old")" != "$pdated" ]] || continue
+        if (( LIST )); then
+          printf '  would remove  %s\n' "$(basename "$old")"
+        else
+          rm -f -- "$old"
+          printf '    superseded, removed %s\n' "$(basename "$old")"
+          removed=$((removed + 1))
+        fi
+      done
     fi
   fi
 
