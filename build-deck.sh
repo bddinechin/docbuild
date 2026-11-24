@@ -65,7 +65,7 @@ else
   PDF_DIR="$(project_pdf_outdir)"; PPTX_DIR="$(abs "${PPTX_OUTDIR:-docs/pptx}")"
 fi
 command -v pandoc >/dev/null || { echo "build-deck.sh: pandoc not installed" >&2; exit 1; }
-python3 -P -c 'import pptx, PIL' 2>/dev/null \
+python3 -I -c 'import pptx, PIL' 2>/dev/null \
   || { echo "build-deck.sh: python-pptx not installed (pip install python-pptx)" >&2; exit 1; }
 SOFFICE="$(command -v soffice || command -v libreoffice || true)"
 [[ -n "$SOFFICE" ]] || { echo "build-deck.sh: LibreOffice (soffice) not installed" >&2; exit 1; }

@@ -59,7 +59,7 @@ if [[ -z "$OUTDIR" ]]; then
   [[ "$OUTDIR" == /* ]] || OUTDIR="$PROJECT/$OUTDIR"
 fi
 command -v pandoc >/dev/null || { echo "build-pptx.sh: pandoc not installed" >&2; exit 1; }
-python3 -P -c 'import pptx' 2>/dev/null \
+python3 -I -c 'import pptx' 2>/dev/null \
   || { echo "build-pptx.sh: python-pptx not installed (pip install python-pptx)" >&2; exit 1; }
 mkdir -p "$OUTDIR"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
