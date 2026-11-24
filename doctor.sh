@@ -11,8 +11,8 @@
 #
 # A group is checked when the project uses it: render always; diagrams when DIAGRAMS_DIR holds
 # .dot sources or the project has a build-diagrams.sh wrapper; slides when SLIDES_SRC is set or
-# there is a build-slides.sh wrapper; pptx when there is a build-pptx.sh wrapper; latex when
-# LATEX_DIR is set. Exits non-zero if anything required is missing or too old.
+# there is a build-slides.sh wrapper; pptx when there is a build-pptx.sh wrapper; deck when there
+# is a build-deck.sh wrapper or DECK_OUTDIR is set; latex when LATEX_DIR is set. Exits non-zero if anything required is missing or too old.
 #
 # The version floors are the oldest releases the scripts actually work with, not the newest
 # release tested. Each one names the feature that sets it, so the floor can be revisited when
@@ -93,6 +93,7 @@ uses() {
               [[ -n "${DIAGRAMS_DIR:-}" ]] && compgen -G "$PROJECT/$DIAGRAMS_DIR/*.dot" >/dev/null ;;
     slides)   [[ -n "${SLIDES_SRC:-}" || -x "$PROJECT/build-slides.sh" ]] ;;
     pptx)     [[ -x "$PROJECT/build-pptx.sh" ]] ;;
+    deck)     [[ -x "$PROJECT/build-deck.sh" || -n "${DECK_OUTDIR:-}" ]] ;;
     latex)    [[ -n "${LATEX_DIR:-}" ]] ;;
   esac
 }
@@ -145,12 +146,46 @@ if section pptx "build-pptx.sh — editable PowerPoint"; then
   need_cmd pandoc || true
   if need_cmd python3; then
     for mod in pptx lxml; do
-      if v="$(python3 -c "import $mod as m; print(getattr(m, '__version__', '') or getattr(getattr(m, 'etree', None), '__version__', '') or 'present')" 2>/dev/null)"; then
+      if v="$(python3 -P -c "import $mod as m; print(getattr(m, '__version__', '') or getattr(getattr(m, 'etree', None), '__version__', '') or 'present')" 2>/dev/null)"; then
         ok "python: $mod" "$v"
       else
         bad "python: $mod" "not importable — pip install python-pptx"
       fi
     done
+  fi
+fi
+
+# build-deck.sh measures text with the metrics of the font that will render it, so the font is
+# required, not cosmetic: without Carlito, LibreOffice substitutes a face of different widths and
+# the PDF no longer matches the layout -- or PowerPoint.
+if section deck "build-deck.sh — designed PowerPoint, PDFs exported from it"; then
+  need_cmd pandoc "parses the deck source" || true
+  need_cmd fc-match "font lookup for text measurement (fontconfig)" && ok fc-match "present"
+  if need_cmd python3; then
+    for mod in pptx lxml PIL; do
+      if v="$(python3 -P -c "import $mod as m; print(getattr(m, '__version__', '') or getattr(getattr(m, 'etree', None), '__version__', '') or 'present')" 2>/dev/null)"; then
+        ok "python: $mod" "$v"
+      else
+        bad "python: $mod" "not importable — pip install python-pptx (it brings lxml and Pillow)"
+      fi
+    done
+  fi
+  if command -v soffice >/dev/null || command -v libreoffice >/dev/null; then
+    ok "LibreOffice" "$({ soffice --version || libreoffice --version; } 2>/dev/null | head -1)"
+  else
+    bad "LibreOffice" "not installed — exports the PDFs (apt install libreoffice-impress)"
+  fi
+  if command -v fc-match >/dev/null; then
+    f="$(fc-match -f '%{family}' Calibri 2>/dev/null)"
+    case "$f" in
+      Carlito*|Calibri*) ok "font" "Calibri → $f" ;;
+      *) bad "font" "Calibri resolves to ${f:-nothing} — apt install fonts-crosextra-carlito" ;;
+    esac
+    f="$(fc-match -f '%{family}' 'Courier New' 2>/dev/null)"
+    case "$f" in
+      "Liberation Mono"*|"Courier New"*) ok "font" "Courier New → $f" ;;
+      *) warn "font" "Courier New resolves to ${f:-nothing} — code will be measured wrongly (fonts-liberation)" ;;
+    esac
   fi
 fi
 

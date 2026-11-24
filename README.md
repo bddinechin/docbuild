@@ -7,7 +7,7 @@ It exists because the same `render.sh` had been copied into three project direct
 started to drift: the engine was identical, only the document list and the output directory
 differed. Here the engine is the package and the difference is a per-project `docbuild.conf`.
 
-Everything runs locally: pandoc, xelatex, inkscape, python-pptx. **No network calls** — some of
+Everything runs locally: pandoc, xelatex, inkscape, python-pptx, LibreOffice. **No network calls** — some of
 the projects using this hold sensitive or unpublished material, and rendering must never be the
 thing that sends a document somewhere.
 
@@ -28,7 +28,7 @@ cd /path/to/project
 ./render.sh --all --pdf     # a named fileset, as dated PDFs
 ```
 
-Add `build-slides.sh` and `build-pptx.sh` to the `install.sh` line for a project that has a
+Add `build-slides.sh`, `build-pptx.sh` and `build-deck.sh` to the `install.sh` line for a project that has a
 slide deck.
 
 The wrapper finds the package in `$DOCBUILD`, then `.docbuild/` in the project, then
@@ -146,6 +146,28 @@ dialect) put a KDE syntax definition in a directory and name it in `SLIDES_SYNTA
 fence tagged with the definition's lowercased `name` picks it up. `SLIDES_HIGHLIGHT_STYLE` picks
 the palette (pandoc's `--highlight-style`, default `pygments`). In the PowerPoint build each token
 stays its own run with its own colour and weight, at the size the code box is fitted to.
+
+### The designed deck: `build-deck.sh`
+
+`build-deck.sh` reads the same source and renders it the other way round: **the `.pptx` is the
+master and the PDFs are exported from it** by LibreOffice, so the PowerPoint file and the PDF are
+one rendering and cannot differ. `lib/deck.py` lays out every slide itself with one style kit — a
+part kicker over the title, an accent rule, a footer with the slide number, coloured part
+dividers, native tables, code in a shaded box, the diagrams as native shapes — instead of handing
+the slide to pandoc's pptx writer. pandoc still parses the Markdown, so inline syntax means what
+it means everywhere else.
+
+Nothing is left to autofit. Each text box is sized from the metrics of the font that will render
+it, with exact line spacing: the body takes the largest size from 24 pt down to 11 pt at which the
+slide fits, a long list of short items goes to two columns when that reads larger, table columns
+are sized to their text, and speaker notes are fitted to the notes page. A slide or a page of
+notes that does not fit at the floor is reported. The text face is **Calibri**, measured through
+its metric clone **Carlito** (`fonts-crosextra-carlito`), which is also what LibreOffice draws
+with; `doctor.sh` fails without it, because the measured layout would no longer be the one drawn.
+
+Outputs go to `DECK_OUTDIR` (default `deck/`): `<name>_YYYYMMDD.pptx`, `.pdf`, and
+`<name>_notes_YYYYMMDD.pdf`, one notes page per slide. Not yet done: syntax colouring of code
+blocks, which `build-pptx.sh` has.
 
 ## Circulating a document
 
@@ -283,6 +305,7 @@ document with a table and a box-drawing block, through the real `colwidths.lua` 
 | `render.sh` | documents: HTML preview, dated PDF |
 | `build-slides.sh` | beamer deck, two variants (with and without notes) |
 | `build-pptx.sh` | the same deck as editable `.pptx` |
+| `build-deck.sh` | the same deck laid out as a designed `.pptx`, with its PDFs exported from it |
 | `build-latex.sh` | LaTeX documents sharing a style file |
 | `build-diagrams.sh` | Graphviz sources to SVG, with a staleness and subset check |
 | `sendable.sh` | copy the current build out under a name fit to send |
@@ -291,6 +314,7 @@ document with a table and a box-drawing block, through the real `colwidths.lua` 
 | `lib/project.sh` | find and load `docbuild.conf` |
 | `lib/build-cache.sh` | the content-hash manifest |
 | `lib/svg2pptx.py` | SVG to native PowerPoint shapes |
+| `lib/deck.py` | the slide layout engine and style kit behind `build-deck.sh` |
 | `lib/folio_check.py` | find text that has overrun into the bottom margin |
 | `assets/` | LaTeX preamble, HTML style, table-width filter, wrapper template |
 

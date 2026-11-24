@@ -28,7 +28,7 @@ fileset_all() {
   find "$PROJECT/docs" -maxdepth 1 -name '*.md' | sort
 }
 
-# --- slides, if the project has any (build-slides.sh, build-pptx.sh) ---
+# --- slides, if the project has any (build-slides.sh, build-pptx.sh, build-deck.sh) ---
 # SLIDES_SRC="docs/presentation-content.md"
 # DIAGRAMS_DIR="docs/diagrams"   # also where build-diagrams.sh looks for .dot sources
 # SLIDES_NAME="Project_slides"
@@ -36,6 +36,8 @@ fileset_all() {
 # SLIDES_SUBTITLE="Internal review"
 # SLIDES_DATE="September 2026"
 # PPTX_OUTDIR="docs/pptx"
+# SLIDES_AUTHOR="Name"                    # on the title slide
+# DECK_OUTDIR="deck"                      # build-deck.sh: the .pptx and the PDFs exported from it
 # SLIDES_SYNTAX_DIR="docs/slides/syntax"  # KDE syntax definitions (*.xml) for languages pandoc
 #                                         # lacks; a fence tagged ```mlir uses the one named MLIR
 # SLIDES_HIGHLIGHT_STYLE="pygments"       # any pandoc --highlight-style; default pygments
