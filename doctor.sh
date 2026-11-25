@@ -146,7 +146,7 @@ if section pptx "build-pptx.sh — editable PowerPoint"; then
   need_cmd pandoc || true
   if need_cmd python3; then
     for mod in pptx lxml; do
-      if v="$(python3 -I -c "import $mod as m; print(getattr(m, '__version__', '') or getattr(getattr(m, 'etree', None), '__version__', '') or 'present')" 2>/dev/null)"; then
+      if v="$(cd / && python3 -c "import $mod as m; print(getattr(m, '__version__', '') or getattr(getattr(m, 'etree', None), '__version__', '') or 'present')" 2>/dev/null)"; then
         ok "python: $mod" "$v"
       else
         bad "python: $mod" "not importable — pip install python-pptx"
@@ -163,7 +163,7 @@ if section deck "build-deck.sh — designed PowerPoint, PDFs exported from it"; 
   need_cmd fc-match "font lookup for text measurement (fontconfig)" && ok fc-match "present"
   if need_cmd python3; then
     for mod in pptx lxml PIL; do
-      if v="$(python3 -I -c "import $mod as m; print(getattr(m, '__version__', '') or getattr(getattr(m, 'etree', None), '__version__', '') or 'present')" 2>/dev/null)"; then
+      if v="$(cd / && python3 -c "import $mod as m; print(getattr(m, '__version__', '') or getattr(getattr(m, 'etree', None), '__version__', '') or 'present')" 2>/dev/null)"; then
         ok "python: $mod" "$v"
       else
         bad "python: $mod" "not importable — pip install python-pptx (it brings lxml and Pillow)"
